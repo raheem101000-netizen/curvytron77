@@ -116,22 +116,10 @@ gulp.task('server', function() {
         .pipe(gulp.dest(recipes.server.path));
 });
 
-gulp.task('sass-full', function() {
-    return gulp.src(sassDir + 'style.scss')
-        .pipe(plumber({ errorHandler: onError }))
-        .pipe(sass())
-        .pipe(rename('style.css'))
-        .pipe(gulp.dest(cssDir));
-});
-
-gulp.task('sass-min', function() {
-    return gulp.src(sassDir + 'style.scss')
-        .pipe(plumber({ errorHandler: onError }))
-        .pipe(sass())
-        .pipe(minifyCSS())
-        .pipe(rename('style.css'))
-        .pipe(gulp.dest(cssDir));
-});
+// sass-full and sass-min commented out — node-sass fails on ARM64 / Node 14+
+// CSS is pre-built and committed to web/css/style.css
+gulp.task('sass-full', function(done) { done(); });
+gulp.task('sass-min',  function(done) { done(); });
 
 gulp.task('copy-stress-test', function() {
     return gulp.src('src/client/stressTest.js')
