@@ -1,0 +1,57 @@
+{
+  "name": "curvytron",
+  "version": "1.4.5",
+  "description": "A web multiplayer Tron game like... with curves!",
+  "keywords": [
+    "tron",
+    "game",
+    "indie",
+    "html5",
+    "devops"
+  ],
+  "homepage": "https://github.com/Elao/curvytron",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Elao/curvytron"
+  },
+  "license": "MIT",
+  "contributors": [
+    {
+      "name": "Johan Dufour",
+      "email": "johan.dufour@gmail.com",
+      "homepage": "https://github.com/lutangar"
+    },
+    {
+      "name": "Thomas JARRAND",
+      "email": "thomas.jarrand@gmail.com",
+      "homepage": "http://thomas-jarrand.com"
+    }
+  ],
+  "devDependencies": {
+    "gulp": "^3.8.*",
+    "gulp-concat": "^2.4.*",
+    "gulp-header": "^1.0.*",
+    "gulp-html-minifier": "^0.1.*",
+    "gulp-jshint": "^1.6.*",
+    "gulp-minify-css": "~0.3.*",
+    "gulp-plumber": "^0.5.*",
+    "gulp-rename": "^1.2.*",
+    "gulp-replace": "^0.5.*",
+    "gulp-sass": "^0.7.*",
+    "gulp-uglify": "^0.3.*",
+    "gulp-util": "^2.2.*",
+    "gulp-wrap": "^0.11.0"
+  },
+  "dependencies": {
+    "express": "^4.13.3",
+    "faye-websocket": "^0.10.0",
+    "influx": "^4.0.1"
+  },
+  "optionalDependencies": {
+    "usage": "^0.7.0",
+    "MD5": "^1.3.0"
+  },
+  "scripts": {
+    "install": "bower install"
+  }
+}
