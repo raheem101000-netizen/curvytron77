@@ -4123,20 +4123,30 @@ function RoomsController($scope, $location, client)
     this.$scope.join              = this.joinRoom;
     this.$scope.quickPlay         = this.quickPlay;
     this.$scope.roomMaxLength     = Room.prototype.maxLength;
-    this.$scope.roomName          = '';
-    this.$scope.roomOpen          = null;
-    this.$scope.nameError         = false;
-    this.$scope.typeError         = false;
-    this.$scope.showCreateModal   = false;
-    this.$scope.setRoomType       = function(isOpen) { this.roomOpen = isOpen; this.typeError = false; }.bind(this.$scope);
-    this.$scope.openCreateModal   = function() {
-        this.showCreateModal = true;
-        this.roomName        = '';
-        this.roomOpen        = null;
-        this.nameError       = false;
-        this.typeError       = false;
-    }.bind(this.$scope);
-    this.$scope.closeCreateModal  = function() { this.showCreateModal = false; }.bind(this.$scope);
+    this.$scope.roomName = '';
+    this.$scope.showCreateModal = false;
+    this.$scope.roomOpen = null;
+    this.$scope.nameError = false;
+    this.$scope.typeError = false;
+
+    var self = this;
+
+    this.$scope.openCreateModal = function() {
+        self.$scope.showCreateModal = true;
+        self.$scope.roomName = '';
+        self.$scope.roomOpen = null;
+        self.$scope.nameError = false;
+        self.$scope.typeError = false;
+    };
+
+    this.$scope.closeCreateModal = function() {
+        self.$scope.showCreateModal = false;
+    };
+
+    this.$scope.setRoomType = function(isOpen) {
+        self.$scope.roomOpen = isOpen;
+        self.$scope.typeError = false;
+    };
     this.$scope.$parent.profile   = true;
 
     this.attachEvents();
@@ -4176,8 +4186,7 @@ RoomsController.prototype.detachEvents = function()
 /**
  * Create a room
  */
-RoomsController.prototype.createRoom = function(e)
-{
+RoomsController.prototype.createRoom = function() {
     if (!this.$scope.roomName || this.$scope.roomName.trim().length < 1) {
         this.$scope.nameError = true;
         return;
@@ -4186,9 +4195,10 @@ RoomsController.prototype.createRoom = function(e)
         this.$scope.typeError = true;
         return;
     }
-    window._kurverPrivateRoom = (this.$scope.roomOpen === false);
     this.$scope.showCreateModal = false;
-    this.repository.create(this.$scope.roomName.trim(), this.onCreateRoom);
+    var name = this.$scope.roomName.trim();
+    var open = this.$scope.roomOpen;
+    this.repository.create(name, this.onCreateRoom);
 };
 
 /**
