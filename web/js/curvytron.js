@@ -4124,13 +4124,8 @@ function RoomsController($scope, $location, client)
     this.$scope.quickPlay         = this.quickPlay;
     this.$scope.roomMaxLength     = Room.prototype.maxLength;
     this.$scope.roomName = '';
-    var self = this;
-    this.$scope.showCreateModal = false;
     this.$scope.roomOpen = null;
-    this.$scope.nameError = false;
-    this.$scope.openCreateModal = function() { self.$scope.showCreateModal = true; self.$scope.roomName = ''; self.$scope.roomOpen = null; self.$scope.nameError = false; };
-    this.$scope.closeCreateModal = function() { self.$scope.showCreateModal = false; };
-    this.$scope.setRoomType = function(v) { self.$scope.roomOpen = v; };
+    this.$scope.showModal = false;
     this.$scope.$parent.profile   = true;
 
     this.attachEvents();
@@ -4171,10 +4166,7 @@ RoomsController.prototype.detachEvents = function()
  * Create a room
  */
 RoomsController.prototype.createRoom = function() {
-    if (!this.$scope.roomName || !this.$scope.roomName.trim()) { this.$scope.nameError = true; return; }
-    if (this.$scope.roomOpen === null) { return; }
-    this.$scope.showCreateModal = false;
-    this.repository.create(this.$scope.roomName.trim(), this.onCreateRoom);
+    this.repository.create(this.$scope.roomName, this.onCreateRoom);
 };
 
 /**
