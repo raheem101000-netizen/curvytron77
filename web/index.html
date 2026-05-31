@@ -193,10 +193,11 @@ function kurverSubmitRoom() {
     var name = document.getElementById('modal-room-name').value.trim();
     if (!name || !kurverRoomType) return;
     closeKurverModal();
-    var input = document.getElementById('real-room-name');
-    var angularScope = angular.element(input).scope();
-    angularScope.$apply(function() { angularScope.roomName = name; });
-    document.getElementById('real-submit-btn').click();
+    var scope = angular.element(document.getElementById('main')).scope();
+    scope.$apply(function() {
+        scope.roomName = name;
+        scope.createRoom();
+    });
 }
         </script>
     </body>
