@@ -151,5 +151,53 @@ footer a { color: rgba(255,255,255,0.3) !important; }
 
         <script src="js/dependencies.js"></script>
         <script src="js/curvytron.js"></script>
+        <script>
+var kurverRoomType = null;
+
+function openKurverModal() {
+    kurverRoomType = null;
+    document.getElementById('modal-room-name').value = '';
+    document.getElementById('modal-name-error').style.display = 'none';
+    document.getElementById('modal-btn-public').style.cssText = 'flex:1;padding:9px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.05);color:rgba(255,255,255,0.5);cursor:pointer;font-family:Space Grotesk,sans-serif;font-size:12px;font-weight:600;';
+    document.getElementById('modal-btn-private').style.cssText = 'flex:1;padding:9px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.05);color:rgba(255,255,255,0.5);cursor:pointer;font-family:Space Grotesk,sans-serif;font-size:12px;font-weight:600;';
+    document.getElementById('kurver-modal-overlay').style.display = 'flex';
+    setTimeout(function(){ document.getElementById('modal-room-name').focus(); }, 100);
+}
+
+function closeKurverModal() {
+    document.getElementById('kurver-modal-overlay').style.display = 'none';
+}
+
+function kurverSetType(type) {
+    kurverRoomType = type;
+    var isPublic = type === 'public';
+    document.getElementById('modal-btn-public').style.background = isPublic ? 'rgba(80,200,255,0.15)' : 'rgba(255,255,255,0.05)';
+    document.getElementById('modal-btn-public').style.color = isPublic ? '#50c8ff' : 'rgba(255,255,255,0.5)';
+    document.getElementById('modal-btn-public').style.borderColor = isPublic ? '#50c8ff' : 'rgba(255,255,255,0.15)';
+    document.getElementById('modal-btn-private').style.background = !isPublic ? 'rgba(180,80,255,0.15)' : 'rgba(255,255,255,0.05)';
+    document.getElementById('modal-btn-private').style.color = !isPublic ? '#b450ff' : 'rgba(255,255,255,0.5)';
+    document.getElementById('modal-btn-private').style.borderColor = !isPublic ? '#b450ff' : 'rgba(255,255,255,0.15)';
+    kurverCheckValid();
+}
+
+function kurverCheckValid() {
+    var name = document.getElementById('modal-room-name').value.trim();
+    var valid = name.length > 0 && kurverRoomType !== null;
+    var btn = document.getElementById('modal-start-btn');
+    btn.disabled = !valid;
+    btn.style.opacity = valid ? '1' : '0.35';
+    btn.style.cursor = valid ? 'pointer' : 'not-allowed';
+}
+
+function kurverSubmitRoom() {
+    var name = document.getElementById('modal-room-name').value.trim();
+    if (!name || !kurverRoomType) return;
+    closeKurverModal();
+    var input = document.getElementById('real-room-name');
+    var angularScope = angular.element(input).scope();
+    angularScope.$apply(function() { angularScope.roomName = name; });
+    document.getElementById('real-submit-btn').click();
+}
+        </script>
     </body>
 </html>
