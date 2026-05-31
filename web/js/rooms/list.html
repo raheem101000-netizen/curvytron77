@@ -3,107 +3,154 @@
         <blockquote class="quote">
             <p>A multiplayer tron-like game... with curves!</p>
         </blockquote>
-
         <div class="tuto">
             <img src="images/tuto/turn.gif" class="circle" alt="Turning" width="150" height="150">
             <p class="content">You're always moving. But you can choose to go left or right.</p>
         </div>
-
         <div class="tuto">
             <img src="images/tuto/death.gif" class="circle" alt="Turning" width="150" height="150">
             <p class="content">If you hit another player's line or your own: you're dead!</p>
         </div>
-
         <div class="tuto">
             <img src="images/tuto/bonus.gif" class="circle" alt="Turning" width="150" height="150">
             <p class="content">There are bonuses on the map that can help you.</p>
         </div>
-
         <div class="clearfix"></div>
-
     </div>
 
     <div class="container room-list">
         <h2 class="header" ng-class="{ 'empty': rooms.isEmpty() }">
             <span class="title">
                 <ng-pluralize count="rooms.items.length" when="{
-                    '0': 'Start by creating a room:',
+                    '0': 'No rooms yet — create one!',
                     'one': 'You can join 1 room!',
-                    'other': 'You can join {} rooms!'}"
-                />
+                    'other': 'You can join {} rooms!'}"/>
             </span>
-            <button class="btn-open-modal" ng-click="openCreateModal()">+ Create Room</button>
+            <button class="btn-create-room-trigger" onclick="openKurverModal()">+ Create Room</button>
         </h2>
 
         <table id="rooms" class="rooms table table-hover v-align-middle" ng-if="!rooms.isEmpty()">
             <tbody>
                 <tr ng-repeat="room in rooms.items track by room.name" ng-if="!room.game && room.open" ng-click="join(room)" class="room">
-                    <td class="room-name">🌐 {{ ::room.name }}</td>
+                    <td class="room-name">{{ ::room.name }}</td>
                     <td class="room-nb-players">
-                        <ng-pluralize count="room.players" when="{
-                            '0': 'No player',
-                            'one': '1 player',
-                            'other': '{} players'}"
-                        />
+                        <ng-pluralize count="room.players" when="{'0': 'No player', 'one': '1 player', 'other': '{} players'}"/>
                     </td>
-                    <td class="room-enter-col">
-                        <div class="room-enter-container">
-                            <p class="room-enter">
-                                <span><i class="icon-game"></i> Join</span>
-                            </p>
-                        </div>
-                    </td>
+                    <td class="room-enter-col"><div class="room-enter-container"><p class="room-enter"><span><i class="icon-game"></i> Join</span></p></div></td>
                 </tr>
                 <tr ng-repeat="room in rooms.items track by room.name" ng-if="room.game && room.open" ng-click="join(room)" class="room in-game">
-                    <td class="room-name">🌐 {{ ::room.name }}</td>
+                    <td class="room-name">{{ ::room.name }}</td>
                     <td class="room-nb-players">
-                        <ng-pluralize count="room.players" when="{
-                            '0': 'No player',
-                            'one': '1 player',
-                            'other': '{} players'}"
-                        />
+                        <ng-pluralize count="room.players" when="{'0': 'No player', 'one': '1 player', 'other': '{} players'}"/>
                     </td>
-                    <td class="room-enter-col">
-                        <div class="room-enter-container">
-                            <p class="room-enter">
-                                <span><i class="icon-spectate"></i> Spectate</span>
-                            </p>
-                        </div>
-                    </td>
+                    <td class="room-enter-col"><div class="room-enter-container"><p class="room-enter"><span><i class="icon-spectate"></i> Spectate</span></p></div></td>
                 </tr>
             </tbody>
         </table>
-    </div>
 
-    <!-- Create Room Modal -->
-    <div class="create-modal-overlay" ng-if="showCreateModal" ng-click="closeCreateModal()">
-        <div class="create-modal" ng-click="$event.stopPropagation()">
-            <h3 class="modal-title">Create a Room</h3>
-            <form ng-submit="createRoom()">
-                <div class="modal-field">
-                    <input type="text"
-                           ng-model="roomName"
-                           class="modal-input"
-                           placeholder="Room name..."
-                           maxlength="{{ ::roomMaxLength }}"
-                           autocomplete="off"
-                           ng-change="nameError = false; nameShake = false"
-                           ng-class="{'input-error': nameError, 'shake': nameShake}"
-                           autofocus />
-                    <div class="room-name-error" ng-if="nameError">Please enter a room name</div>
-                </div>
-                <div class="modal-field">
-                    <div class="room-type-toggle" ng-class="{'toggle-error': typeError}">
-                        <button type="button" class="toggle-btn public-btn" ng-class="{active: roomOpen === true}" ng-click="setRoomType(true)">🌐 Public</button>
-                        <button type="button" class="toggle-btn private-btn" ng-class="{active: roomOpen === false}" ng-click="setRoomType(false)">🔒 Private</button>
-                    </div>
-                </div>
-                <div class="modal-actions">
-                    <button type="submit" class="btn-start-room" ng-disabled="!roomName || roomName.length < 1 || roomOpen === null">Start Room</button>
-                    <button type="button" class="btn-cancel-modal" ng-click="closeCreateModal()">Cancel</button>
-                </div>
-            </form>
+        <!-- Hidden original Angular form — this is what actually creates the room -->
+        <form id="real-create-form" ng-submit="createRoom()" style="display:none">
+            <input id="real-room-name" type="text" ng-model="roomName" autocomplete="off"/>
+            <button type="submit" id="real-submit-btn">+</button>
+        </form>
+    </div>
+</section>
+
+<!-- Modal -->
+<div id="kurver-modal-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:99999;align-items:center;justify-content:center;">
+    <div style="background:#0d0d1a;border:1px solid rgba(255,255,255,0.1);border-radius:14px;padding:32px;width:340px;max-width:92vw;">
+        <h3 style="color:#fff;font-family:'Space Grotesk',sans-serif;font-size:18px;font-weight:700;margin-bottom:22px;">Create a Room</h3>
+        <div style="margin-bottom:16px;">
+            <input id="modal-room-name" type="text" placeholder="Room name..." maxlength="25" autocomplete="off"
+                style="width:100%;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);color:#fff;border-radius:8px;padding:10px 14px;font-family:'Space Grotesk',sans-serif;font-size:14px;outline:none;box-sizing:border-box;"
+                oninput="kurverCheckValid()"/>
+            <div id="modal-name-error" style="color:#ff5555;font-size:11px;margin-top:5px;display:none;">Please enter a room name</div>
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:24px;">
+            <button id="modal-btn-public" onclick="kurverSetType('public')"
+                style="flex:1;padding:9px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.05);color:rgba(255,255,255,0.5);cursor:pointer;font-family:'Space Grotesk',sans-serif;font-size:12px;font-weight:600;">
+                🌐 Public
+            </button>
+            <button id="modal-btn-private" onclick="kurverSetType('private')"
+                style="flex:1;padding:9px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.05);color:rgba(255,255,255,0.5);cursor:pointer;font-family:'Space Grotesk',sans-serif;font-size:12px;font-weight:600;">
+                🔒 Private
+            </button>
+        </div>
+        <div style="display:flex;gap:10px;">
+            <button id="modal-start-btn" onclick="kurverSubmitRoom()" disabled
+                style="flex:1;padding:11px 0;background:#b450ff;color:#fff;border:none;border-radius:8px;font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:600;cursor:pointer;opacity:0.35;">
+                Start Room
+            </button>
+            <button onclick="closeKurverModal()"
+                style="padding:11px 18px;background:transparent;color:rgba(255,255,255,0.45);border:1px solid rgba(255,255,255,0.15);border-radius:8px;font-family:'Space Grotesk',sans-serif;font-size:14px;cursor:pointer;">
+                Cancel
+            </button>
         </div>
     </div>
+</div>
 
-</section>
+<style>
+.btn-create-room-trigger{padding:9px 18px;background:#b450ff;color:#fff;border:none;border-radius:8px;font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:600;cursor:pointer;}
+.btn-create-room-trigger:hover{opacity:0.85;}
+</style>
+
+<script>
+var kurverRoomType = null;
+
+function openKurverModal() {
+    kurverRoomType = null;
+    document.getElementById('modal-room-name').value = '';
+    document.getElementById('modal-name-error').style.display = 'none';
+    document.getElementById('modal-btn-public').style.background = 'rgba(255,255,255,0.05)';
+    document.getElementById('modal-btn-public').style.color = 'rgba(255,255,255,0.5)';
+    document.getElementById('modal-btn-public').style.borderColor = 'rgba(255,255,255,0.15)';
+    document.getElementById('modal-btn-private').style.background = 'rgba(255,255,255,0.05)';
+    document.getElementById('modal-btn-private').style.color = 'rgba(255,255,255,0.5)';
+    document.getElementById('modal-btn-private').style.borderColor = 'rgba(255,255,255,0.15)';
+    var overlay = document.getElementById('kurver-modal-overlay');
+    overlay.style.display = 'flex';
+    setTimeout(function(){ document.getElementById('modal-room-name').focus(); }, 100);
+}
+
+function closeKurverModal() {
+    document.getElementById('kurver-modal-overlay').style.display = 'none';
+}
+
+function kurverSetType(type) {
+    kurverRoomType = type;
+    var isPublic = type === 'public';
+    document.getElementById('modal-btn-public').style.background = isPublic ? 'rgba(80,200,255,0.15)' : 'rgba(255,255,255,0.05)';
+    document.getElementById('modal-btn-public').style.color = isPublic ? '#50c8ff' : 'rgba(255,255,255,0.5)';
+    document.getElementById('modal-btn-public').style.borderColor = isPublic ? '#50c8ff' : 'rgba(255,255,255,0.15)';
+    document.getElementById('modal-btn-private').style.background = !isPublic ? 'rgba(180,80,255,0.15)' : 'rgba(255,255,255,0.05)';
+    document.getElementById('modal-btn-private').style.color = !isPublic ? '#b450ff' : 'rgba(255,255,255,0.5)';
+    document.getElementById('modal-btn-private').style.borderColor = !isPublic ? '#b450ff' : 'rgba(255,255,255,0.15)';
+    kurverCheckValid();
+}
+
+function kurverCheckValid() {
+    var name = document.getElementById('modal-room-name').value.trim();
+    var valid = name.length > 0 && kurverRoomType !== null;
+    var btn = document.getElementById('modal-start-btn');
+    btn.disabled = !valid;
+    btn.style.opacity = valid ? '1' : '0.35';
+    btn.style.cursor = valid ? 'pointer' : 'not-allowed';
+}
+
+function kurverSubmitRoom() {
+    var name = document.getElementById('modal-room-name').value.trim();
+    if (!name || !kurverRoomType) return;
+    closeKurverModal();
+    var input = document.getElementById('real-room-name');
+    var btn = document.getElementById('real-submit-btn');
+    input.value = name;
+    // Trigger Angular ng-model update
+    var event = new Event('input', { bubbles: true });
+    input.dispatchEvent(event);
+    setTimeout(function(){ btn.click(); }, 50);
+}
+
+document.getElementById('kurver-modal-overlay').addEventListener('click', function(e) {
+    if (e.target === this) closeKurverModal();
+});
+</script>
