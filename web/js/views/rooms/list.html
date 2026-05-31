@@ -32,15 +32,7 @@
                     'other': 'You can join {} rooms!'}"
                 />
             </span>
-            <form ng-submit="createRoom()" class="top-right-form create-room-form">
-                <input type="text" ng-model="roomName" class="form-control clearfix" name="name" placeholder="Room name..." maxlength="{{ ::roomMaxLength }}" autocomplete="off" ng-change="nameError = false; nameShake = false" ng-class="{'input-error': nameError, 'shake': nameShake}" />
-                <div class="room-name-error" ng-if="nameError">Please enter a room name</div>
-                <div class="room-type-toggle" ng-class="{'toggle-error': typeError}">
-                    <button type="button" class="toggle-btn" ng-class="{active: roomOpen === true}" ng-click="setRoomType(true)">🌐 Public</button>
-                    <button type="button" class="toggle-btn" ng-class="{active: roomOpen === false}" ng-click="setRoomType(false)">🔒 Private</button>
-                </div>
-                <button type="submit" class="btn-create-room" ng-disabled="!roomName || roomName.length < 1 || roomOpen === null">Create Room</button>
-            </form>
+            <button class="btn-open-modal" ng-click="openCreateModal()">+ Create Room</button>
         </h2>
 
         <table id="rooms" class="rooms table table-hover v-align-middle" ng-if="!rooms.isEmpty()">
@@ -82,4 +74,36 @@
             </tbody>
         </table>
     </div>
+
+    <!-- Create Room Modal -->
+    <div class="create-modal-overlay" ng-if="showCreateModal" ng-click="closeCreateModal()">
+        <div class="create-modal" ng-click="$event.stopPropagation()">
+            <h3 class="modal-title">Create a Room</h3>
+            <form ng-submit="createRoom()">
+                <div class="modal-field">
+                    <input type="text"
+                           ng-model="roomName"
+                           class="modal-input"
+                           placeholder="Room name..."
+                           maxlength="{{ ::roomMaxLength }}"
+                           autocomplete="off"
+                           ng-change="nameError = false; nameShake = false"
+                           ng-class="{'input-error': nameError, 'shake': nameShake}"
+                           autofocus />
+                    <div class="room-name-error" ng-if="nameError">Please enter a room name</div>
+                </div>
+                <div class="modal-field">
+                    <div class="room-type-toggle" ng-class="{'toggle-error': typeError}">
+                        <button type="button" class="toggle-btn public-btn" ng-class="{active: roomOpen === true}" ng-click="setRoomType(true)">🌐 Public</button>
+                        <button type="button" class="toggle-btn private-btn" ng-class="{active: roomOpen === false}" ng-click="setRoomType(false)">🔒 Private</button>
+                    </div>
+                </div>
+                <div class="modal-actions">
+                    <button type="submit" class="btn-start-room" ng-disabled="!roomName || roomName.length < 1 || roomOpen === null">Start Room</button>
+                    <button type="button" class="btn-cancel-modal" ng-click="closeCreateModal()">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
 </section>

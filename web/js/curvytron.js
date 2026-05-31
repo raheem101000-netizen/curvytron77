@@ -4118,18 +4118,28 @@ function RoomsController($scope, $location, client)
     this.$location.search('password', null);
 
     // Hydrating the scope:
-    this.$scope.rooms           = this.repository.rooms;
-    this.$scope.createRoom      = this.createRoom;
-    this.$scope.join            = this.joinRoom;
-    this.$scope.quickPlay       = this.quickPlay;
-    this.$scope.roomMaxLength   = Room.prototype.maxLength;
-    this.$scope.roomName        = '';
-    this.$scope.roomOpen        = null;
-    this.$scope.nameError       = false;
-    this.$scope.nameShake       = false;
-    this.$scope.typeError       = false;
-    this.$scope.setRoomType     = function(open) { controller.$scope.roomOpen = open; controller.$scope.typeError = false; };
-    this.$scope.$parent.profile = true;
+    this.$scope.rooms             = this.repository.rooms;
+    this.$scope.createRoom        = this.createRoom;
+    this.$scope.join              = this.joinRoom;
+    this.$scope.quickPlay         = this.quickPlay;
+    this.$scope.roomMaxLength     = Room.prototype.maxLength;
+    this.$scope.roomName          = '';
+    this.$scope.roomOpen          = null;
+    this.$scope.nameError         = false;
+    this.$scope.nameShake         = false;
+    this.$scope.typeError         = false;
+    this.$scope.showCreateModal   = false;
+    this.$scope.setRoomType       = function(open) { controller.$scope.roomOpen = open; controller.$scope.typeError = false; };
+    this.$scope.openCreateModal   = function() {
+        controller.$scope.showCreateModal = true;
+        controller.$scope.roomName        = '';
+        controller.$scope.roomOpen        = null;
+        controller.$scope.nameError       = false;
+        controller.$scope.nameShake       = false;
+        controller.$scope.typeError       = false;
+    };
+    this.$scope.closeCreateModal  = function() { controller.$scope.showCreateModal = false; };
+    this.$scope.$parent.profile   = true;
 
     this.attachEvents();
 }
@@ -4201,6 +4211,7 @@ RoomsController.prototype.createRoom = function(e)
 RoomsController.prototype.onCreateRoom = function(result)
 {
     if (result.success) {
+        this.$scope.showCreateModal = false;
         this.$scope.name = null;
         this.joinRoom(this.repository.createRoom(result.room));
         this.applyScope();

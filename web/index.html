@@ -41,15 +41,32 @@ input[type=text]::placeholder { color: rgba(255,255,255,0.3) !important; }
 footer { background: transparent !important; border-top: 1px solid rgba(255,255,255,0.06) !important; color: rgba(255,255,255,0.2) !important; }
 footer a { color: rgba(255,255,255,0.3) !important; }
 .back-home { color: rgba(255,255,255,0.4) !important; font-size: 12px !important; letter-spacing: 1px !important; text-decoration: none !important; }
-.create-room-form { display: flex; flex-direction: column; gap: 10px; max-width: 320px; }
+/* Create Room button */
+.btn-open-modal { padding: 9px 18px; background: #b450ff; color: #fff; border: none; border-radius: 8px; font-family: 'Space Grotesk', sans-serif; font-size: 13px; font-weight: 600; cursor: pointer; transition: opacity 0.15s; }
+.btn-open-modal:hover { opacity: 0.85; }
+/* Modal overlay */
+.create-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.72); z-index: 99999; display: flex; align-items: center; justify-content: center; }
+.create-modal { background: #0d0d1a; border: 1px solid rgba(255,255,255,0.1); border-radius: 14px; padding: 32px; width: 340px; max-width: 92vw; }
+.modal-title { color: #fff; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 700; margin-bottom: 22px; }
+.modal-field { margin-bottom: 16px; }
+.modal-input { width: 100%; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12); color: #fff; border-radius: 8px; padding: 10px 14px; font-family: 'Space Grotesk', sans-serif; font-size: 14px; outline: none; }
+.modal-input:focus { border-color: rgba(255,255,255,0.3); }
+.modal-input::placeholder { color: rgba(255,255,255,0.3); }
+/* Toggle */
 .room-type-toggle { display: flex; gap: 8px; }
-.toggle-btn { flex: 1; padding: 8px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.5); cursor: pointer; font-family: 'Space Grotesk', sans-serif; font-size: 12px; font-weight: 600; transition: all 0.15s; }
-.toggle-btn.active { background: rgba(180,80,255,0.2); border-color: #b450ff; color: #b450ff; }
-.btn-create-room { padding: 10px 20px; background: #b450ff; color: #fff; border: none; border-radius: 8px; font-family: 'Space Grotesk', sans-serif; font-size: 13px; font-weight: 600; cursor: pointer; }
-.btn-create-room:hover { opacity: 0.85; }
-.btn-create-room[disabled] { opacity: 0.35; cursor: not-allowed; }
-.btn-create-room[disabled]:hover { opacity: 0.35; }
-.room-name-error { color: #ff5555; font-size: 11px; margin-top: -4px; }
+.toggle-btn { flex: 1; padding: 9px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.04); color: rgba(255,255,255,0.45); cursor: pointer; font-family: 'Space Grotesk', sans-serif; font-size: 13px; font-weight: 600; transition: all 0.15s; }
+.toggle-btn.public-btn.active { background: rgba(80,200,255,0.15); border-color: #50c8ff; color: #50c8ff; }
+.toggle-btn.private-btn.active { background: rgba(180,80,255,0.15); border-color: #b450ff; color: #b450ff; }
+/* Modal actions */
+.modal-actions { display: flex; gap: 10px; margin-top: 24px; }
+.btn-start-room { flex: 1; padding: 11px 0; background: #b450ff; color: #fff; border: none; border-radius: 8px; font-family: 'Space Grotesk', sans-serif; font-size: 14px; font-weight: 600; cursor: pointer; transition: opacity 0.15s; }
+.btn-start-room:hover { opacity: 0.85; }
+.btn-start-room[disabled] { opacity: 0.35; cursor: not-allowed; }
+.btn-start-room[disabled]:hover { opacity: 0.35; }
+.btn-cancel-modal { padding: 11px 18px; background: transparent; color: rgba(255,255,255,0.45); border: 1px solid rgba(255,255,255,0.15); border-radius: 8px; font-family: 'Space Grotesk', sans-serif; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.15s; }
+.btn-cancel-modal:hover { color: rgba(255,255,255,0.75); border-color: rgba(255,255,255,0.35); }
+/* Validation states */
+.room-name-error { color: #ff5555; font-size: 11px; margin-top: 5px; }
 .input-error { border-color: #ff5555 !important; }
 .toggle-error .toggle-btn { border-color: #ff5555 !important; color: #ff5555 !important; animation: flash-red 0.8s ease; }
 @keyframes shake { 0%,100%{transform:translateX(0)} 20%,60%{transform:translateX(-6px)} 40%,80%{transform:translateX(6px)} }
