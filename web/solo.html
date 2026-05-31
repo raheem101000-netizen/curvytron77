@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Solo Challenge — Curvytron</title>
+<style>
+*,*::before,*::after { box-sizing:border-box; margin:0; padding:0; }
+body { background:#1a1a1a; color:#ddd; font-family:'Segoe UI',Arial,sans-serif; overflow:hidden; height:100vh; }
+
+#hud {
+  position:fixed; top:0; left:0; right:0; height:40px;
+  display:flex; align-items:center; gap:16px; padding:0 14px;
+  background:rgba(0,0,0,.75); z-index:10; font-size:13px;
+}
+#hud-match  { font-weight:700; color:#fff; }
+#hud-phase  { font-weight:700; letter-spacing:1px; }
+#hud-balance{ font-weight:700; }
+#hud-bar    { display:flex; gap:2px; margin-left:auto; }
+
+#canvas { display:block; }
+
+#overlay {
+  position:fixed; inset:0; background:rgba(0,0,0,.82);
+  display:none; flex-direction:column; align-items:center; justify-content:center;
+  z-index:20; gap:14px; text-align:center; padding:20px;
+}
+#ov-result  { font-size:2em; font-weight:900; letter-spacing:2px; }
+#ov-balance { font-size:1.3em; line-height:1.8; }
+#ov-next    { font-size:.85em; color:#666; }
+</style>
+</head>
+<body>
+
+<div id="hud">
+  <span id="hud-match">Match 1 / 20</span>
+  <span id="hud-phase">EASY</span>
+  <span id="hud-balance">£0</span>
+  <div id="hud-bar"></div>
+</div>
+
+<canvas id="canvas"></canvas>
+
+<div id="overlay">
+  <div id="ov-result"></div>
+  <div id="ov-balance"></div>
+  <div id="ov-next"></div>
+</div>
+
+<script>
+'use strict';
+
+// ── Physics constants (Curvytron-exact) ────────────────────────────────────
+const VELOCITY      = 16;           // world units / second
+const ANGULAR_VEL   = 2.8 / 1000;  // radians / ms
+const RADIUS        = 0.6;          // world units
+const WORLD_SIZE    = 250;
+const TRAIL_LATENCY = 3;            // self-immunity in trail-point steps
+const HOLE_DIST     = 5;            // gap length (world units)
+const PRINT_DIST    = 60;           // print segment length (world units)
+const WARMUP_MS     = 3000;
+
+const COLORS = ['#e74c3c','#3498db','#2ecc71','#f1c40f','#ff69b4','#ff9800'];
+const NAMES  = ['YOU','Bot1','Bot2','Bot3','Bot4','Bot5'];
+
+// ── Phase config ───────────────────────────────────────────────────────────
+function getPhase(m) {
+  if (m <= 3)  return { name:'EASY',       color:'#2ecc71', delay:8, cap:300,  hunters:0 };
+  if (m <= 6)  return { name:'MODERATE',   color:'#f1c40f', delay:4, cap:600,  hunters:0 };
+  if (m <= 12) return { name:'DIFFICULT',  color:'#e67e22', delay:2, cap:900,  hunters:0 };
+  return             { name:'IMPOSSIBLE', color:'#e74c3c', delay:0, cap:1500, hunters:3 };
+}
+
+// ── Canvas & scale ─────────────────────────────────────────────────────────
+const canvas = document.getElementById('canvas');
+const ctx    = canvas.getContext('2d');
+const bg     = document.createElement('canvas');  // permanent trail layer
+const bgCtx  = bg.getContext('2d');
+let scale = 1;
+const HUD_H = 40;
+
+function resize() {
+  const w = window.innerWidth, h = window.innerHeight - HUD_H;
+  const dim = Math.min(w, h);
+  canvas.width = bg.width = dim;
+  canvas.height = bg.height = dim;
+  canvas.style.cssText = `display:block;margin:${HUD_H}px auto 0;`;
+  scale = dim / WORLD_SIZE;
+  bgCtx.fillStyle = '#1a1a1a';
+  bgCtx.fillRect(0, 0, dim, dim);
+}
+window.addEventListener('resize', resize);
+resize();
+
+// ── Trail grid ─────────────────────────────────────────────────────────────
+// Each cell: 0 = empty
+//   upper 24 bits = bodyCount at placement
+//   lower  8 bits = playerIdx + 1  (so 0 stays "empty")
+const GCELLS = Math.ceil(WORLD_SIZE / RADIUS) + 4;  // ~420 per side
+let trailGrid;
+
+function clearGrid() {
+  trailGrid = new Uint32Array(GCELLS * GCELLS);
+}
+
+function wToG(v) { return Math.max(0, Math.min(GCELLS - 1, Math.floor(v / RADIUS))); }
+
+function markCell(wx, wy, pid, bodyCount) {
+  const gx = wToG(wx), gy = wToG(wy);
+  const enc = ((bodyCount & 0xFFFFFF) << 8) | (pid + 1);
+  for (let dy = -1; dy <= 1; dy++) {
+    for (let dx = -1; dx <= 1; dx++) {
+      const nx = gx + dx, ny = gy + dy;
+      if (nx < 0 || nx >= GCELLS || ny < 0 || ny >= GCELLS) continue;
+      const idx = ny * GCELLS + nx;
+      if (trailGrid[idx] === 0) trailGrid[idx] = enc;
+    }
+  }
+}
+
+function checkPos(wx, wy, pid, bodyCount) {
+  if (wx < RADIUS || wx > WORLD_SIZE - RADIUS ||
+      wy < RADIUS || wy > WORLD_SIZE - RADIUS) return true;
+  const gx = wToG(wx), gy = wToG(wy);
+  for (let dy = -1; dy <= 1; dy++) {
+    for (let dx = -1; dx <= 1; dx++) {
+      const nx = gx + dx, ny = gy + dy;
+      if (nx < 0 || nx >= GCELLS || ny < 0 || ny >= GCELLS) continue;
+      const cell = trailGrid[ny * GCELLS + nx];
+      if (!cell) continue;
+      const cellPid   = (cell & 0xFF) - 1;
+      const cellCount = cell >>> 8;
+      if (cellPid === pid) {
+        if (bodyCount - cellCount > TRAIL_LATENCY) return true;
+      } else {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+// ── Flood fill (BFS) ───────────────────────────────────────────────────────
+function floodFill(wx, wy, cap) {
+  const sx = wToG(wx), sy = wToG(wy);
+  if (trailGrid[sy * GCELLS + sx]) return 0;
+  if (wx < 0 || wx > WORLD_SIZE || wy < 0 || wy > WORLD_SIZE) return 0;
+
+  const vis   = new Uint8Array(GCELLS * GCELLS);
+  const queue = [];
+  const start = sy * GCELLS + sx;
+  vis[start] = 1;
+  queue.push(sx, sy);
+
+  const DIRS = [-1,0, 1,0, 0,-1, 0,1];
+  let head = 0, count = 0;
+
+  while (head < queue.length && count < cap) {
+    const qx = queue[head++], qy = queue[head++];
+    count++;
+    for (let d = 0; d < 8; d += 2) {
+      const nx = qx + DIRS[d], ny = qy + DIRS[d+1];
+      if (nx < 0 || nx >= GCELLS || ny < 0 || ny >= GCELLS) continue;
+      const idx = ny * GCELLS + nx;
+      if (vis[idx] || trailGrid[idx]) continue;
+      vis[idx] = 1;
+      queue.push(nx, ny);
+    }
+  }
+  return count;
+}
+
+// ── Player ─────────────────────────────────────────────────────────────────
+class Player {
+  constructor(id, human) {
+    this.id    = id;
+    this.human = human;
+    this.color = COLORS[id];
+    this.name  = NAMES[id];
+    this.isHunter    = false;
+    this.botDelay    = 0;
+    this.botDecision = 0;
+  }
+
+  reset() {
+    const margin = RADIUS * 4 + WORLD_SIZE * 0.08;
+    const span   = WORLD_SIZE - margin * 2;
+    this.x     = margin + Math.random() * span;
+    this.y     = margin + Math.random() * span;
+    this.angle = Math.random() * Math.PI * 2;
+    this.alive       = true;
+    this.printing    = false;
+    this.printActive = false;
+    this.bodyCount   = 0;
+    this.pmDist  = 0;
+    this.pmLastX = this.x; this.pmLastY = this.y;
+    this.drawX   = null;   this.drawY   = null;
+    this.markX   = null;   this.markY   = null;
+    this.input   = 0;
+  }
+
+  startPrinting() {
+    this.printActive = true;
+    this.printing    = true;
+    this.pmDist  = PRINT_DIST * (0.3 + Math.random() * 0.7);
+    this.pmLastX = this.x; this.pmLastY = this.y;
+    this.drawX   = null;   this.drawY   = null;
+    this.markX   = null;   this.markY   = null;
+  }
+
+  update(step) {
+    if (!this.alive) return;
+    this.angle += this.input * ANGULAR_VEL * step;
+    const v = (VELOCITY / 1000) * step;
+    this.x += Math.cos(this.angle) * v;
+    this.y += Math.sin(this.angle) * v;
+  }
+
+  updatePrint() {
+    if (!this.printActive) return;
+    const dx = this.x - this.pmLastX, dy = this.y - this.pmLastY;
+    this.pmDist -= Math.sqrt(dx*dx + dy*dy);
+    this.pmLastX = this.x; this.pmLastY = this.y;
+    if (this.pmDist <= 0) {
+      this.printing = !this.printing;
+      this.pmDist = this.printing
+        ? PRINT_DIST * (0.3 + Math.random() * 0.7)
+        : HOLE_DIST  * (0.8 + Math.random() * 0.5);
+      if (!this.printing) { this.drawX = null; this.drawY = null; }
+    }
+  }
+
+  tryMark() {
+    if (!this.alive || !this.printing) return;
+    if (this.markX === null) {
+      this.markX = this.x; this.markY = this.y;
+      markCell(this.x, this.y, this.id, this.bodyCount++);
+      return;
+    }
+    const dx = this.x - this.markX, dy = this.y - this.markY;
+    if (Math.sqrt(dx*dx + dy*dy) >= RADIUS) {
+      this.markX = this.x; this.markY = this.y;
+      markCell(this.x, this.y, this.id, this.bodyCount++);
+    }
+  }
+
+  drawTrail() {
+    if (!this.printing) { this.drawX = null; this.drawY = null; return; }
+    if (this.drawX !== null) {
+      bgCtx.beginPath();
+      bgCtx.lineWidth   = Math.max(1, RADIUS * 2 * scale);
+      bgCtx.lineCap     = 'round';
+      bgCtx.strokeStyle = this.color;
+      bgCtx.moveTo(this.drawX * scale, this.drawY * scale);
+      bgCtx.lineTo(this.x    * scale, this.y    * scale);
+      bgCtx.stroke();
+    }
+    this.drawX = this.x; this.drawY = this.y;
+  }
+}
+
+// ── Bot AI ─────────────────────────────────────────────────────────────────
+function botThink(bot, human, phase) {
+  if (!bot.alive) return;
+
+  // Throttle by phase delay
+  if (bot.botDelay > 0) { bot.botDelay--; bot.input = bot.botDecision; return; }
+
+  let bestMove = 0, bestScore = -1;
+
+  if (bot.isHunter && human.alive) {
+    // Steer toward human, but pick the safe direction closest to that heading
+    const ddx = human.x - bot.x, ddy = human.y - bot.y;
+    let diff = Math.atan2(ddy, ddx) - bot.angle;
+    while (diff >  Math.PI) diff -= 2 * Math.PI;
+    while (diff < -Math.PI) diff += 2 * Math.PI;
+    const prefer = diff >= 0 ? 1 : -1;
+
+    for (const move of [prefer, 0, -prefer]) {
+      const a  = bot.angle + move * ANGULAR_VEL * 16 * 2;
+      const tx = bot.x + Math.cos(a) * RADIUS * 6;
+      const ty = bot.y + Math.sin(a) * RADIUS * 6;
+      if (checkPos(tx, ty, bot.id, bot.bodyCount + 10)) continue;
+      const score = floodFill(tx, ty, Math.min(phase.cap, 400));
+      if (score > 0) { bestMove = move; break; }
+    }
+  } else {
+    // Survivor: pick direction with most open space
+    for (const move of [0, -1, 1]) {
+      const a  = bot.angle + move * ANGULAR_VEL * 16 * 2;
+      const tx = bot.x + Math.cos(a) * RADIUS * 6;
+      const ty = bot.y + Math.sin(a) * RADIUS * 6;
+      if (tx < RADIUS || tx > WORLD_SIZE - RADIUS ||
+          ty < RADIUS || ty > WORLD_SIZE - RADIUS) { if (move === 0) continue; }
+      const score = floodFill(tx, ty, phase.cap);
+      if (score > bestScore) { bestScore = score; bestMove = move; }
+    }
+  }
+
+  bot.botDecision = bestMove;
+  bot.botDelay    = phase.delay;
+  bot.input       = bestMove;
+}
+
+// ── Input ──────────────────────────────────────────────────────────────────
+const keys = {};
+window.addEventListener('keydown', e => {
+  keys[e.key] = true;
+  if (['ArrowLeft','ArrowRight','ArrowUp','ArrowDown',' '].includes(e.key)) e.preventDefault();
+});
+window.addEventListener('keyup', e => { delete keys[e.key]; });
+
+let touchL = false, touchR = false;
+window.addEventListener('touchstart', e => {
+  for (const t of e.changedTouches) {
+    if (t.clientX < window.innerWidth / 2) touchL = true; else touchR = true;
+  }
+  e.preventDefault();
+}, {passive:false});
+window.addEventListener('touchend', e => {
+  for (const t of e.changedTouches) {
+    if (t.clientX < window.innerWidth / 2) touchL = false; else touchR = false;
+  }
+}, {passive:false});
+
+function readInput(human) {
+  if (!human || !human.alive) return;
+  let m = 0;
+  if (keys['ArrowLeft']  || keys['a'] || keys['A'] || (touchL && !touchR))  m = -1;
+  if (keys['ArrowRight'] || keys['d'] || keys['D'] || (touchR && !touchL))  m =  1;
+  human.input = m;
+}
+
+// ── Game state ─────────────────────────────────────────────────────────────
+let players  = [];
+let matchNum = 1;
+let balance  = 0;
+let running  = false;
+let rafId    = null;
+let lastNow  = null;
+let warmup   = false;
+let roundOver= false;
+
+function startMatch() {
+  clearGrid();
+  bgCtx.fillStyle = '#1a1a1a';
+  bgCtx.fillRect(0, 0, bg.width, bg.height);
+
+  players = Array.from({length:6}, (_, i) => new Player(i, i === 0));
+
+  const phase = getPhase(matchNum);
+  for (let i = 1; i <= Math.min(phase.hunters, 5); i++) players[i].isHunter = true;
+  for (const p of players) p.reset();
+
+  running   = true;
+  warmup    = true;
+  roundOver = false;
+  lastNow   = null;
+
+  updateHUD();
+  rafId = requestAnimationFrame(loop);
+
+  setTimeout(() => {
+    warmup = false;
+    for (const p of players) if (p.alive) p.startPrinting();
+  }, WARMUP_MS);
+}
+
+function loop(now) {
+  if (!running) return;
+  rafId = requestAnimationFrame(loop);
+
+  const step = lastNow ? now - lastNow : 16.67;
+  lastNow = now;
+
+  const phase = getPhase(matchNum);
+  const human = players[0];
+
+  if (!warmup) {
+    readInput(human);
+    for (const p of players) if (!p.human) botThink(p, human, phase);
+    for (const p of players) p.update(step);
+    for (const p of players) p.updatePrint();
+    for (const p of players) p.drawTrail();
+
+    // Collision (before marking new trail)
+    for (const p of players) {
+      if (!p.alive) continue;
+      if (checkPos(p.x, p.y, p.id, p.bodyCount)) p.alive = false;
+    }
+    // Mark trail
+    for (const p of players) if (p.alive) p.tryMark();
+  }
+
+  // Render
+  ctx.drawImage(bg, 0, 0);
+  for (const p of players) if (p.alive) {
+    const r = Math.max(RADIUS * scale, 2.5);
+    ctx.beginPath();
+    ctx.arc(p.x * scale, p.y * scale, r, 0, Math.PI * 2);
+    ctx.fillStyle = p.color;
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(p.x * scale, p.y * scale);
+    ctx.lineTo((p.x + Math.cos(p.angle) * RADIUS * 3) * scale,
+               (p.y + Math.sin(p.angle) * RADIUS * 3) * scale);
+    ctx.strokeStyle = 'rgba(255,255,255,.6)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  }
+  ctx.strokeStyle = '#333';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(.5, .5, canvas.width - 1, canvas.height - 1);
+
+  if (!warmup && !roundOver) {
+    const alive = players.filter(p => p.alive).length;
+    if (alive <= 1 || !human.alive) endMatch(human.alive);
+  }
+}
+
+function endMatch(won) {
+  if (roundOver) return;
+  roundOver = true;
+  running   = false;
+
+  balance += won ? 5 : -5;
+
+  const ov = document.getElementById('overlay');
+  const r  = document.getElementById('ov-result');
+  const b  = document.getElementById('ov-balance');
+  const n  = document.getElementById('ov-next');
+
+  r.textContent = won ? '✓  WIN  +£5' : '✗  LOSE  −£5';
+  r.style.color = won ? '#2ecc71' : '#e74c3c';
+  b.textContent = 'Balance: £' + balance;
+  b.style.color = balance >= 0 ? '#2ecc71' : '#e74c3c';
+
+  if (matchNum >= 20) {
+    n.textContent = '';
+    ov.style.display = 'flex';
+    setTimeout(showFinal, 3000);
+  } else {
+    n.textContent = 'Next match in 3s…';
+    ov.style.display = 'flex';
+    setTimeout(() => {
+      ov.style.display = 'none';
+      matchNum++;
+      startMatch();
+    }, 3000);
+  }
+}
+
+function showFinal() {
+  const cashout = Math.min(100, Math.max(0, balance));
+  document.getElementById('ov-result').textContent  = 'CHALLENGE COMPLETE';
+  document.getElementById('ov-result').style.color  = '#f1c40f';
+  document.getElementById('ov-balance').innerHTML   =
+    `Final Balance: <strong>£${balance}</strong><br>` +
+    `Cashout: <strong style="color:#2ecc71">£${cashout}</strong><br>` +
+    `<button onclick="location.reload()" style="margin-top:18px;padding:12px 32px;` +
+    `background:#1565c0;border:none;border-radius:6px;color:#fff;font-size:1em;cursor:pointer;">` +
+    `Play Again</button>`;
+  document.getElementById('ov-next').textContent = '';
+}
+
+function updateHUD() {
+  const phase = getPhase(matchNum);
+  document.getElementById('hud-match').textContent = 'Match ' + matchNum + ' / 20';
+  const ph = document.getElementById('hud-phase');
+  ph.textContent = phase.name; ph.style.color = phase.color;
+  const bl = document.getElementById('hud-balance');
+  bl.textContent = '£' + balance;
+  bl.style.color = balance >= 0 ? '#2ecc71' : '#e74c3c';
+
+  const bar = document.getElementById('hud-bar');
+  bar.innerHTML = '';
+  for (let i = 1; i <= 20; i++) {
+    const s = document.createElement('span');
+    const c = getPhase(i).color;
+    const bg2 = i < matchNum ? c : i === matchNum ? c : '#2a2a2a';
+    const op  = i < matchNum ? '.45' : i === matchNum ? '1' : '.35';
+    s.style.cssText = `display:inline-block;width:10px;height:8px;border-radius:2px;margin:0 1px;background:${bg2};opacity:${op}`;
+    bar.appendChild(s);
+  }
+}
+
+// ── Boot ───────────────────────────────────────────────────────────────────
+startMatch();
+</script>
+</body>
+</html>

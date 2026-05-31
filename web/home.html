@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Curvytron</title>
+<style>
+*,*::before,*::after { box-sizing:border-box; margin:0; padding:0; }
+body {
+  background:#111; color:#ddd;
+  font-family:'Segoe UI',Arial,sans-serif;
+  height:100vh; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; gap:0;
+}
+h1 { font-size:2.8em; font-weight:900; letter-spacing:4px; color:#fff; margin-bottom:6px; }
+.tagline { color:#666; margin-bottom:48px; font-size:.95em; }
+a.btn {
+  display:block; width:300px; padding:20px 24px; margin:10px;
+  background:#1e1e1e; border:1px solid #2a2a2a; color:#ddd;
+  border-radius:8px; cursor:pointer; font-size:1.15em; font-weight:600;
+  text-align:center; text-decoration:none; transition:background .15s,border-color .15s;
+}
+a.btn:hover { background:#252525; border-color:#444; }
+a.btn.primary { background:#1565c0; border-color:#1976d2; color:#fff; }
+a.btn.primary:hover { background:#1976d2; }
+</style>
+</head>
+<body>
+<h1>CURVYTRON</h1>
+<p class="tagline">Multiplayer snake — leave trails, outlast everyone</p>
+<a class="btn primary" href="/solo">Solo Challenge</a>
+<a class="btn"         href="/multiplayer">Multiplayer</a>
+</body>
+</html>
