@@ -13,6 +13,7 @@
         <link rel="author" href="humans.txt" />
         <link rel="icon" type="image/png" href="images/favicon.png" />
         <link href='//fonts.googleapis.com/css?family=Lato:300,400,700' rel='stylesheet' type='text/css'>
+        <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
         <link rel="stylesheet" href="css/style.css">
         <meta property="og:title" content="Curvytron - A multiplayer tron-like game... with curves!"/>
         <meta property="og:type" content="game"/>
@@ -25,6 +26,17 @@
         <!-- Google Analytics -->
     </head>
     <body ng-app="curvytronApp" ng-controller="CurvytronController">
+        <div style="position:fixed;top:0;left:0;right:0;z-index:9999;padding:12px 24px;display:flex;align-items:center;justify-content:space-between;background:rgba(5,5,15,0.85);backdrop-filter:blur(12px);border-bottom:1px solid rgba(255,255,255,0.07);">
+          <a href="/" style="display:flex;align-items:center;gap:10px;text-decoration:none;">
+            <svg width="28" height="28" viewBox="0 0 42 42" fill="none">
+              <path d="M7 35 Q12 8 21 21 Q30 34 35 7" stroke="#50c8ff" stroke-width="3.5" stroke-linecap="round" fill="none"/>
+              <path d="M5 24 Q13 3 22 16 Q31 29 37 12" stroke="#b450ff" stroke-width="2" stroke-linecap="round" fill="none" opacity="0.7"/>
+            </svg>
+            <span style="font-family:'Space Grotesk',sans-serif;font-size:18px;font-weight:700;letter-spacing:3px;color:#fff;">KURVER</span>
+          </a>
+          <a href="/" style="font-family:'Space Grotesk',sans-serif;font-size:12px;color:rgba(255,255,255,0.4);text-decoration:none;letter-spacing:1px;">← Back to home</a>
+        </div>
+        <div style="height:56px;"></div>
         <!--[if lt IE 8]>
             <div id="browsehappy">
                 <div id="browsehappy-inner">
