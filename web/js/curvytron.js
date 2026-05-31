@@ -3623,6 +3623,12 @@ RoomController.prototype.onJoined = function(result)
         this.attachEvents();
         this.addProfileUser();
         this.requestDigestScope();
+
+        if (window._kurverPrivateRoom && this.repository.amIMaster()) {
+            window._kurverPrivateRoom = false;
+            var repo = this.repository;
+            setTimeout(function() { repo.setConfigOpen(false, function(){}); }, 50);
+        }
     } else {
         console.error('Could not join room %s: %s', result.name, result.error);
         this.goHome();
@@ -4118,6 +4124,8 @@ function RoomsController($scope, $location, client)
     this.$scope.quickPlay       = this.quickPlay;
     this.$scope.roomMaxLength   = Room.prototype.maxLength;
     this.$scope.roomName        = '';
+    this.$scope.roomOpen        = true;
+    this.$scope.setRoomType     = function(open) { controller.$scope.roomOpen = open; };
     this.$scope.$parent.profile = true;
 
     this.attachEvents();
@@ -4159,6 +4167,7 @@ RoomsController.prototype.detachEvents = function()
  */
 RoomsController.prototype.createRoom = function(e)
 {
+    window._kurverPrivateRoom = (this.$scope.roomOpen === false);
     this.repository.create(this.$scope.roomName, this.onCreateRoom);
 };
 
