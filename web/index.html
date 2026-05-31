@@ -47,6 +47,14 @@ footer a { color: rgba(255,255,255,0.3) !important; }
 .toggle-btn.active { background: rgba(180,80,255,0.2); border-color: #b450ff; color: #b450ff; }
 .btn-create-room { padding: 10px 20px; background: #b450ff; color: #fff; border: none; border-radius: 8px; font-family: 'Space Grotesk', sans-serif; font-size: 13px; font-weight: 600; cursor: pointer; }
 .btn-create-room:hover { opacity: 0.85; }
+.btn-create-room[disabled] { opacity: 0.35; cursor: not-allowed; }
+.btn-create-room[disabled]:hover { opacity: 0.35; }
+.room-name-error { color: #ff5555; font-size: 11px; margin-top: -4px; }
+.input-error { border-color: #ff5555 !important; }
+.toggle-error .toggle-btn { border-color: #ff5555 !important; color: #ff5555 !important; animation: flash-red 0.8s ease; }
+@keyframes shake { 0%,100%{transform:translateX(0)} 20%,60%{transform:translateX(-6px)} 40%,80%{transform:translateX(6px)} }
+@keyframes flash-red { 0%,100%{border-color:rgba(255,255,255,0.15)} 30%,70%{border-color:#ff5555} }
+.shake { animation: shake 0.4s ease; }
         </style>
         <meta property="og:title" content="Curvytron - A multiplayer tron-like game... with curves!"/>
         <meta property="og:type" content="game"/>

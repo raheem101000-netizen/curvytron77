@@ -33,12 +33,13 @@
                 />
             </span>
             <form ng-submit="createRoom()" class="top-right-form create-room-form">
-                <input type="text" ng-model="roomName" class="form-control clearfix" name="name" placeholder="Room name..." maxlength="{{ ::roomMaxLength }}" autocomplete="off" />
-                <div class="room-type-toggle">
-                    <button type="button" class="toggle-btn" ng-class="{active: roomOpen}" ng-click="setRoomType(true)">🌐 Public</button>
-                    <button type="button" class="toggle-btn" ng-class="{active: !roomOpen}" ng-click="setRoomType(false)">🔒 Private</button>
+                <input type="text" ng-model="roomName" class="form-control clearfix" name="name" placeholder="Room name..." maxlength="{{ ::roomMaxLength }}" autocomplete="off" ng-change="nameError = false; nameShake = false" ng-class="{'input-error': nameError, 'shake': nameShake}" />
+                <div class="room-name-error" ng-if="nameError">Please enter a room name</div>
+                <div class="room-type-toggle" ng-class="{'toggle-error': typeError}">
+                    <button type="button" class="toggle-btn" ng-class="{active: roomOpen === true}" ng-click="setRoomType(true)">🌐 Public</button>
+                    <button type="button" class="toggle-btn" ng-class="{active: roomOpen === false}" ng-click="setRoomType(false)">🔒 Private</button>
                 </div>
-                <button type="submit" class="btn-create-room">Create Room</button>
+                <button type="submit" class="btn-create-room" ng-disabled="!roomName || roomName.length < 1 || roomOpen === null">Create Room</button>
             </form>
         </h2>
 
