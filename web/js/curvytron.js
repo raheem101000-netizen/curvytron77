@@ -4126,19 +4126,17 @@ function RoomsController($scope, $location, client)
     this.$scope.roomName          = '';
     this.$scope.roomOpen          = null;
     this.$scope.nameError         = false;
-    this.$scope.nameShake         = false;
     this.$scope.typeError         = false;
     this.$scope.showCreateModal   = false;
-    this.$scope.setRoomType       = function(open) { controller.$scope.roomOpen = open; controller.$scope.typeError = false; };
+    this.$scope.setRoomType       = function(isOpen) { this.roomOpen = isOpen; this.typeError = false; }.bind(this.$scope);
     this.$scope.openCreateModal   = function() {
-        controller.$scope.showCreateModal = true;
-        controller.$scope.roomName        = '';
-        controller.$scope.roomOpen        = null;
-        controller.$scope.nameError       = false;
-        controller.$scope.nameShake       = false;
-        controller.$scope.typeError       = false;
-    };
-    this.$scope.closeCreateModal  = function() { controller.$scope.showCreateModal = false; };
+        this.showCreateModal = true;
+        this.roomName        = '';
+        this.roomOpen        = null;
+        this.nameError       = false;
+        this.typeError       = false;
+    }.bind(this.$scope);
+    this.$scope.closeCreateModal  = function() { this.showCreateModal = false; }.bind(this.$scope);
     this.$scope.$parent.profile   = true;
 
     this.attachEvents();
@@ -4180,27 +4178,17 @@ RoomsController.prototype.detachEvents = function()
  */
 RoomsController.prototype.createRoom = function(e)
 {
-    var scope = this.$scope;
-    var nameOk = scope.roomName && scope.roomName.trim().length > 0;
-    var typeOk = scope.roomOpen !== null;
-
-    if (!nameOk) {
-        scope.nameError = true;
-        scope.nameShake = true;
-        setTimeout(function() { scope.nameShake = false; scope.$apply(); }, 500);
-        this.applyScope();
+    if (!this.$scope.roomName || this.$scope.roomName.trim().length < 1) {
+        this.$scope.nameError = true;
+        return;
     }
-    if (!typeOk) {
-        scope.typeError = true;
-        setTimeout(function() { scope.typeError = false; scope.$apply(); }, 800);
-        this.applyScope();
+    if (this.$scope.roomOpen === null) {
+        this.$scope.typeError = true;
+        return;
     }
-    if (!nameOk || !typeOk) { return; }
-
-    scope.nameError = false;
-    scope.typeError = false;
-    window._kurverPrivateRoom = (scope.roomOpen === false);
-    this.repository.create(scope.roomName, this.onCreateRoom);
+    window._kurverPrivateRoom = (this.$scope.roomOpen === false);
+    this.$scope.showCreateModal = false;
+    this.repository.create(this.$scope.roomName.trim(), this.onCreateRoom);
 };
 
 /**
