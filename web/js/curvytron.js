@@ -4166,6 +4166,7 @@ RoomsController.prototype.detachEvents = function()
  * Create a room
  */
 RoomsController.prototype.createRoom = function() {
+    this.$scope.showModal = false;
     this.repository.create(this.$scope.roomName, this.onCreateRoom);
 };
 
@@ -4174,15 +4175,14 @@ RoomsController.prototype.createRoom = function() {
  *
  * @param {Object} result
  */
-RoomsController.prototype.onCreateRoom = function(result)
-{
+RoomsController.prototype.onCreateRoom = function(result) {
     if (result.success) {
-        this.$scope.showCreateModal = false;
-        this.$scope.name = null;
+        this.$scope.showModal = false;
+        this.$scope.roomName = '';
         this.joinRoom(this.repository.createRoom(result.room));
         this.applyScope();
     } else {
-        console.error('Could not create room %s', this.$scope.name);
+        console.error('Could not create room %s', this.$scope.roomName);
     }
 };
 
