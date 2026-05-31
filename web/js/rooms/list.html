@@ -142,12 +142,11 @@ function kurverSubmitRoom() {
     if (!name || !kurverRoomType) return;
     closeKurverModal();
     var input = document.getElementById('real-room-name');
-    var btn = document.getElementById('real-submit-btn');
-    input.value = name;
-    // Trigger Angular ng-model update
-    var event = new Event('input', { bubbles: true });
-    input.dispatchEvent(event);
-    setTimeout(function(){ btn.click(); }, 50);
+    var angularScope = angular.element(input).scope();
+    angularScope.$apply(function() {
+        angularScope.roomName = name;
+    });
+    document.getElementById('real-submit-btn').click();
 }
 
 document.getElementById('kurver-modal-overlay').addEventListener('click', function(e) {
