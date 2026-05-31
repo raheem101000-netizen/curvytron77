@@ -15,6 +15,33 @@
         <link href='//fonts.googleapis.com/css?family=Lato:300,400,700' rel='stylesheet' type='text/css'>
         <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
         <link rel="stylesheet" href="css/style.css">
+        <style>
+body { background: #05050f !important; font-family: 'Space Grotesk', sans-serif !important; }
+.glow-bg { position: fixed; top: 0; left: 0; right: 0; bottom: 0; pointer-events: none; z-index: 0; overflow: hidden; }
+.glow-1 { position: absolute; width: 500px; height: 500px; background: #3b0fa0; border-radius: 50%; filter: blur(80px); top: -150px; left: -150px; opacity: 0.22; }
+.glow-2 { position: absolute; width: 400px; height: 400px; background: #0f4fa0; border-radius: 50%; filter: blur(80px); top: 0; right: -100px; opacity: 0.18; }
+.glow-3 { position: absolute; width: 450px; height: 450px; background: #a00f6e; border-radius: 50%; filter: blur(80px); bottom: 0; left: 50%; transform: translateX(-50%); opacity: 0.16; }
+header { background: rgba(5,5,15,0.85) !important; backdrop-filter: blur(12px) !important; border-bottom: 1px solid rgba(255,255,255,0.07) !important; position: fixed !important; top: 0 !important; left: 0 !important; right: 0 !important; z-index: 9999 !important; padding: 12px 24px !important; display: flex !important; align-items: center !important; justify-content: space-between !important; }
+header .logo { color: #fff !important; font-family: 'Space Grotesk', sans-serif !important; font-size: 20px !important; font-weight: 700 !important; letter-spacing: 3px !important; text-decoration: none !important; }
+header .logo .brand { color: #fff !important; }
+header img#logo { display: none !important; }
+.container { position: relative; z-index: 1; }
+h1, h2, h3, h4 { color: #fff !important; font-family: 'Space Grotesk', sans-serif !important; }
+p, span, label, a { font-family: 'Space Grotesk', sans-serif !important; }
+section.home { background: transparent !important; padding-top: 80px !important; }
+section.home h1 { display: none !important; }
+.rooms-list { background: rgba(255,255,255,0.03) !important; border: 1px solid rgba(255,255,255,0.08) !important; border-radius: 12px !important; }
+.room-item { border-bottom: 1px solid rgba(255,255,255,0.06) !important; color: rgba(255,255,255,0.8) !important; }
+.room-item:hover { background: rgba(255,255,255,0.05) !important; }
+input[type=text] { background: rgba(255,255,255,0.05) !important; border: 1px solid rgba(255,255,255,0.12) !important; color: #fff !important; border-radius: 8px !important; font-family: 'Space Grotesk', sans-serif !important; }
+input[type=text]::placeholder { color: rgba(255,255,255,0.3) !important; }
+.btn, button { font-family: 'Space Grotesk', sans-serif !important; }
+.btn-primary, .btn-default { background: #b450ff !important; border-color: #b450ff !important; color: #fff !important; border-radius: 8px !important; }
+.btn-primary:hover, .btn-default:hover { opacity: 0.85 !important; }
+footer { background: transparent !important; border-top: 1px solid rgba(255,255,255,0.06) !important; color: rgba(255,255,255,0.2) !important; }
+footer a { color: rgba(255,255,255,0.3) !important; }
+.back-home { color: rgba(255,255,255,0.4) !important; font-size: 12px !important; letter-spacing: 1px !important; text-decoration: none !important; }
+        </style>
         <meta property="og:title" content="Curvytron - A multiplayer tron-like game... with curves!"/>
         <meta property="og:type" content="game"/>
         <meta property="og:url" content="http://www.curvytron.com"/>
@@ -26,6 +53,7 @@
         <!-- Google Analytics -->
     </head>
     <body ng-app="curvytronApp" ng-controller="CurvytronController">
+        <div class="glow-bg"><div class="glow-1"></div><div class="glow-2"></div><div class="glow-3"></div></div>
         <div style="position:fixed;top:0;left:0;right:0;z-index:9999;padding:12px 24px;display:flex;align-items:center;justify-content:space-between;background:rgba(5,5,15,0.85);backdrop-filter:blur(12px);border-bottom:1px solid rgba(255,255,255,0.07);">
           <a href="/" style="display:flex;align-items:center;gap:10px;text-decoration:none;">
             <svg width="28" height="28" viewBox="0 0 42 42" fill="none">
