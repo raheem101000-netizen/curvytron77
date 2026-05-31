@@ -4119,7 +4119,7 @@ function RoomsController($scope, $location, client)
 
     // Hydrating the scope:
     this.$scope.rooms             = this.repository.rooms;
-    this.$scope.createRoom        = this.createRoom;
+    this.$scope.createRoom        = this.createRoom.bind(this);
     this.$scope.join              = this.joinRoom;
     this.$scope.quickPlay         = this.quickPlay;
     this.$scope.roomMaxLength     = Room.prototype.maxLength;
