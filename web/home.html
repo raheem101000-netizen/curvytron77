@@ -9,15 +9,26 @@
 body {
   background:#1a1a1a; color:#ddd;
   font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;
-  height:100vh; display:flex; flex-direction:column;
-  align-items:center; justify-content:center; gap:0;
+  min-height:100vh; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; padding:40px 20px; gap:0;
 }
 h1 { font-size:2.8em; font-weight:900; letter-spacing:6px; color:#fff; margin-bottom:8px; }
-.tagline { color:#555; margin-bottom:48px; font-size:.95em; letter-spacing:1px; }
+.tagline { color:#666; margin-bottom:40px; font-size:.95em; letter-spacing:1px; }
+.cards {
+  display:flex; gap:24px; margin-bottom:44px; flex-wrap:wrap; justify-content:center;
+}
+.card {
+  background:#222; border:1px solid #2e2e2e; border-radius:10px;
+  width:210px; padding:22px 18px 20px; text-align:center;
+  display:flex; flex-direction:column; align-items:center; gap:14px;
+}
+.card img { width:120px; height:80px; object-fit:cover; border-radius:6px; display:block; }
+.card p { font-size:.82em; color:#aaa; line-height:1.55; }
+.buttons { display:flex; gap:16px; flex-wrap:wrap; justify-content:center; }
 a.btn {
-  display:block; width:300px; padding:20px 24px; margin:10px;
+  display:block; width:220px; padding:18px 24px;
   background:#222; border:1px solid #2e2e2e; color:#ddd;
-  border-radius:8px; cursor:pointer; font-size:1.15em; font-weight:600;
+  border-radius:8px; cursor:pointer; font-size:1.1em; font-weight:600;
   text-align:center; text-decoration:none; transition:background .15s,border-color .15s;
 }
 a.btn:hover { background:#282828; border-color:#444; }
@@ -27,8 +38,26 @@ a.btn.primary:hover { background:#1976d2; }
 </head>
 <body>
 <h1>KURVER</h1>
-<p class="tagline">Multiplayer snake — leave trails, outlast everyone</p>
-<a class="btn primary" href="/solo">Solo Challenge</a>
-<a class="btn"         href="/multiplayer">Multiplayer</a>
+<p class="tagline">A multiplayer curve game... with curves!</p>
+
+<div class="cards">
+  <div class="card">
+    <img src="images/tuto/turn.gif" alt="Turning">
+    <p>You're always moving. But you can choose to go left or right.</p>
+  </div>
+  <div class="card">
+    <img src="images/tuto/death.gif" alt="Death">
+    <p>If you hit another player's line or your own: you're dead!</p>
+  </div>
+  <div class="card">
+    <img src="images/tuto/bonus.gif" alt="Bonus">
+    <p>There are bonuses on the map that can help you.</p>
+  </div>
+</div>
+
+<div class="buttons">
+  <a class="btn primary" href="/solo">Solo Challenge</a>
+  <a class="btn"         href="/multiplayer">Multiplayer</a>
+</div>
 </body>
 </html>
