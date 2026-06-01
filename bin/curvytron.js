@@ -765,7 +765,7 @@ BaseAvatar.prototype.constructor = BaseAvatar;
  *
  * @type {Number}
  */
-BaseAvatar.prototype.velocity = 81;
+BaseAvatar.prototype.velocity = 16;
 
 /**
  * Turn velocity
@@ -779,7 +779,7 @@ BaseAvatar.prototype.angularVelocityBase = 2.8/1000;
  *
  * @type {Number}
  */
-BaseAvatar.prototype.radius = 3;
+BaseAvatar.prototype.radius = 0.6;
 
 /**
  * Number of trail points that don't kill the player
@@ -1566,7 +1566,9 @@ BaseGame.prototype.setSize = function()
  */
 BaseGame.prototype.getSize = function(players)
 {
-    return 680;
+    var square = this.perPlayerSize * this.perPlayerSize,
+        size   = Math.sqrt(square + ((players - 1) * square / 5));
+    return Math.round(size);
 };
 
 /**
