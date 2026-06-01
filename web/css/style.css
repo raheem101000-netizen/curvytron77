@@ -7813,7 +7813,9 @@ li.player-row img {
   overflow-y: auto;
   width: 500px;
   border-left: 5px solid #444;
-  background: #F3F3F3;
+  background: #0d0d1a !important;
+  border: 1px solid rgba(255,255,255,0.1) !important;
+  color: rgba(255,255,255,0.85) !important;
   z-index: 100;
   -webkit-transition: right 0.25s ease;
   -o-transition: right 0.25s ease;
@@ -8344,4 +8346,36 @@ footer {
 #intro {
     margin-top: auto !important;
     margin-bottom: auto !important;
+}
+
+#profile .profile-form,
+#profile .profile-form .panel-body,
+#profile .profile-form .container {
+  background: #0d0d1a !important;
+  color: rgba(255,255,255,0.85) !important;
+}
+
+#profile .profile-form label,
+#profile .profile-form h4,
+#profile .profile-form h3,
+#profile .profile-form p,
+#profile .profile-form span {
+  color: rgba(255,255,255,0.85) !important;
+}
+
+#profile .profile-form input[type=text] {
+  background: rgba(255,255,255,0.05) !important;
+  border: 1px solid rgba(255,255,255,0.15) !important;
+  color: #fff !important;
+  border-radius: 6px !important;
+}
+
+#profile .profile-form .btn {
+  background: #b450ff !important;
+  border-color: #b450ff !important;
+  color: #fff !important;
+}
+
+#profile .profile-form hr {
+  border-color: rgba(255,255,255,0.08) !important;
 }
