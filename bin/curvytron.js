@@ -3879,24 +3879,19 @@ RoomsController.prototype.onCreateRoom = function(client, data, callback)
     }
 
     if (room) {
-        var botData = [
-            {name: 'Bot Alpha', color: '#FF4444'},
-            {name: 'Bot Beta', color: '#4BA8FF'},
-            {name: 'Bot Gamma', color: '#4CFF6C'},
-            {name: 'Bot Delta', color: '#FFD700'},
-            {name: 'Bot Epsilon', color: '#FF8C00'}
-        ];
-        botData.forEach(function(bot) {
-            var fakeClient = {
-                id: null,
-                active: true,
-                players: { add: function(){} },
-                addEvent: function(){},
-                on: function(){},
-                off: function(){},
-                emit: function(){}
-            };
-            var player = new Player(fakeClient, bot.name, bot.color);
+        var EventEmitter = require('events').EventEmitter;
+        var botNames = ['Bot 1', 'Bot 2', 'Bot 3', 'Bot 4', 'Bot 5'];
+        var botColors = ['#FF4444', '#4BA8FF', '#4CFF6C', '#FFD700', '#FF8C00'];
+        botNames.forEach(function(botName, i) {
+            var fakeClient = new EventEmitter();
+            fakeClient.id = null;
+            fakeClient.active = true;
+            fakeClient.players = new Collection([], 'id');
+            fakeClient.addEvent = function(){};
+            fakeClient.sendEvents = function(){};
+            fakeClient.removeListener = function(){};
+            var player = new Player(fakeClient, botName, botColors[i]);
+            player.ready = true;
             room.addPlayer(player);
         });
     }
@@ -6762,6 +6757,9 @@ Game.prototype.update = function(step)
         dead   = false;
 
         if (avatar.alive) {
+            if (avatar.player && avatar.player.name && avatar.player.name.indexOf('Bot') === 0) {
+                avatar.angularVelocity = 0;
+            }
             avatar.update(step);
 
             border = this.world.getBoundIntersect(avatar.body, this.borderless ? 0 : avatar.radius);
