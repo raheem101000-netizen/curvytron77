@@ -765,7 +765,7 @@ BaseAvatar.prototype.constructor = BaseAvatar;
  *
  * @type {Number}
  */
-BaseAvatar.prototype.velocity = 16;
+BaseAvatar.prototype.velocity = 81;
 
 /**
  * Turn velocity
@@ -779,7 +779,7 @@ BaseAvatar.prototype.angularVelocityBase = 2.8/1000;
  *
  * @type {Number}
  */
-BaseAvatar.prototype.radius = 0.6;
+BaseAvatar.prototype.radius = 3;
 
 /**
  * Number of trail points that don't kill the player
