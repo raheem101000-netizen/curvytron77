@@ -4166,8 +4166,12 @@ RoomsController.prototype.detachEvents = function()
  * Create a room
  */
 RoomsController.prototype.createRoom = function() {
+    var nameInput = document.querySelector('.kurver-input');
+    var name = nameInput ? nameInput.value.trim() : this.$scope.roomName;
+    if (!name) return;
     this.$scope.showModal = false;
-    this.repository.create(this.$scope.roomName, this.onCreateRoom);
+    this.$scope.roomName = name;
+    this.repository.create(name, this.onCreateRoom);
 };
 
 /**
