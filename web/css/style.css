@@ -4292,18 +4292,13 @@ body {
 
 header {
   color: #FFF;
-  text-align: center;
-  padding: 20px 20px;
-  margin: 0 0 40px 0;
+  text-align: left;
+  padding: 12px 24px;
+  margin: 0 0 10px 0;
   position: relative;
-  border-bottom: 10px solid #FFF;
-  position: relative;
-  background-color: #ff8069;
-  background-image: linear-gradient(#ff8069, #ff6e90);
-  background-image: -moz-linear-gradient(#ff8069, #ff6e90);
-  background-image: -webkit-gradient(linear, 0% 0%, 0% 100%, from(#ff8069), to(#ff6e90));
-  background-image: -webkit-linear-gradient(#ff8069, #ff6e90);
-  background-image: -o-linear-gradient(#ff8069, #ff6e90);
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+  background-color: rgba(5,5,15,0.85);
+  backdrop-filter: blur(12px);
 }
 header .logo {
   z-index: 10;
