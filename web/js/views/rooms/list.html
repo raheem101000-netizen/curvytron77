@@ -26,12 +26,17 @@
                     'one': 'You can join 1 room!',
                     'other': 'You can join {} rooms!'}"/>
             </span>
-            <button class="btn-open-modal" ng-click="showModal=true">+ Create Room</button>
+            <form ng-submit="createRoom()" class="top-right-form">
+                <button type="submit" id="submit">
+                    <span><i class="icon-plus"></i></span>
+                </button>
+                <input type="text" ng-model="roomName" class="form-control clearfix" name="name" placeholder="Create a new room..." maxlength="{{ ::roomMaxLength }}"/>
+            </form>
         </h2>
 
         <table id="rooms" class="rooms table table-hover v-align-middle" ng-if="!rooms.isEmpty()">
             <tbody>
-                <tr ng-repeat="room in rooms.items track by room.name" ng-if="!room.game" class="room" ng-class="{private: !room.open}">
+                <tr ng-repeat="room in rooms.items track by room.name" ng-if="!room.game" ng-click="join(room)" class="room" ng-class="{private: !room.open}">
                     <td class="room-name">{{ ::room.name }}</td>
                     <td class="room-nb-players">
                         <ng-pluralize count="room.players" when="{'0': 'No player', 'one': '1 player', 'other': '{} players'}"/>
@@ -41,12 +46,12 @@
                         <form class="room-password-col" ng-if="!room.open" ng-submit="join(room)">
                             <input type="text" class="form-control password" maxlength="4" ng-model="room.password" placeholder="••••"/>
                         </form>
-                        <div class="room-enter-container" ng-if="room.open" ng-click="join(room)">
+                        <div class="room-enter-container">
                             <p class="room-enter"><span><i class="icon-game"></i> Join</span></p>
                         </div>
                     </td>
                 </tr>
-                <tr ng-repeat="room in rooms.items track by room.name" ng-if="room.game" class="room in-game">
+                <tr ng-repeat="room in rooms.items track by room.name" ng-if="room.game" ng-click="join(room)" class="room in-game" ng-class="{private: !room.open}">
                     <td class="room-name">{{ ::room.name }}</td>
                     <td class="room-nb-players">
                         <ng-pluralize count="room.players" when="{'0': 'No player', 'one': '1 player', 'other': '{} players'}"/>
@@ -56,7 +61,7 @@
                         <form class="room-password-col" ng-if="!room.open" ng-submit="join(room)">
                             <input type="text" class="form-control password" maxlength="4" ng-model="room.password" placeholder="••••"/>
                         </form>
-                        <div class="room-enter-container" ng-if="room.open" ng-click="join(room)">
+                        <div class="room-enter-container">
                             <p class="room-enter"><span><i class="icon-spectate"></i> Spectate</span></p>
                         </div>
                     </td>
@@ -64,52 +69,4 @@
             </tbody>
         </table>
     </div>
-
-    <!-- Modal using original Angular form — no vanilla JS needed -->
-    <div class="kurver-overlay" ng-if="showModal" ng-click="showModal=false">
-        <div class="kurver-modal" ng-click="$event.stopPropagation()">
-            <h3 class="kurver-modal-title">Create a Room</h3>
-            <form ng-submit="createRoom()">
-                <div class="kurver-field">
-                    <input type="text"
-                           ng-model="roomName"
-                           class="kurver-input"
-                           placeholder="Room name..."
-                           maxlength="{{ ::roomMaxLength }}"
-                           autocomplete="off"
-                           autofocus/>
-                </div>
-                <div class="kurver-field">
-                    <div class="kurver-toggle">
-                        <button type="button" class="kurver-toggle-btn" ng-class="{active: roomOpen===true}" ng-click="roomOpen=true">🌐 Public</button>
-                        <button type="button" class="kurver-toggle-btn" ng-class="{active: roomOpen===false}" ng-click="roomOpen=false">🔒 Private</button>
-                    </div>
-                </div>
-                <div class="kurver-actions">
-                    <button type="submit" class="kurver-submit" ng-disabled="!roomName || roomName.trim().length < 1 || roomOpen === undefined || roomOpen === null">Start Room</button>
-                    <button type="button" class="kurver-cancel" ng-click="showModal=false">Cancel</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
 </section>
-
-<style>
-.btn-open-modal{padding:9px 18px;background:#b450ff;color:#fff;border:none;border-radius:8px;font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:600;cursor:pointer;}
-.btn-open-modal:hover{opacity:0.85;}
-.kurver-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:99999;display:flex;align-items:center;justify-content:center;}
-.kurver-modal{background:#0d0d1a;border:1px solid rgba(255,255,255,0.1);border-radius:14px;padding:32px;width:340px;max-width:92vw;}
-.kurver-modal-title{color:#fff;font-family:'Space Grotesk',sans-serif;font-size:18px;font-weight:700;margin-bottom:22px;}
-.kurver-field{margin-bottom:16px;}
-.kurver-input{width:100%;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);color:#fff;border-radius:8px;padding:10px 14px;font-family:'Space Grotesk',sans-serif;font-size:14px;outline:none;box-sizing:border-box;}
-.kurver-input:focus{border-color:rgba(255,255,255,0.3);}
-.kurver-input::placeholder{color:rgba(255,255,255,0.3);}
-.kurver-toggle{display:flex;gap:8px;}
-.kurver-toggle-btn{flex:1;padding:9px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.05);color:rgba(255,255,255,0.5);cursor:pointer;font-family:'Space Grotesk',sans-serif;font-size:12px;font-weight:600;transition:all 0.15s;}
-.kurver-toggle-btn.active{background:rgba(180,80,255,0.2);border-color:#b450ff;color:#b450ff;}
-.kurver-actions{display:flex;gap:10px;margin-top:24px;}
-.kurver-submit{flex:1;padding:11px 0;background:#b450ff;color:#fff;border:none;border-radius:8px;font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:600;cursor:pointer;}
-.kurver-submit:disabled{opacity:0.35;cursor:not-allowed;}
-.kurver-cancel{padding:11px 18px;background:transparent;color:rgba(255,255,255,0.45);border:1px solid rgba(255,255,255,0.15);border-radius:8px;font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:600;cursor:pointer;}
-</style>
