@@ -1,21 +1,57 @@
 <div class="row">
     <div class="col-md-6">
+        <div class="max-score">
+            <h2 class="header">VICTORY SCORE</h2>
+            <input type="number" id="max-score" class="form-control" ng-model="room.config.maxScore" ng-change="setMaxScore()" min="{{ ::room.config.minScore }}" max="{{ ::room.config.maxScore }}" ng-disabled="!master" />
+        </div>
         <div class="public-room">
             <h2 class="header">YOUR ROOM IS</h2>
-            <label class="switch-label">
-                <span ng-if="room.config.open">PUBLIC</span>
-                <span ng-if="!room.config.open">PRIVATE</span>
-                <div class="switch-container" ng-click="toggleOpen()">
-                    <div class="switch-track" ng-class="{private: !room.config.open}">
+            <label>
+                PUBLIC
+                <div id="open" class="switch-container" ng-click="toggleOpen()">
+                    <div class="switch-track" ng-class="{on: !room.config.open}">
                         <div class="switch"></div>
                     </div>
                 </div>
-                <span ng-if="room.config.open">PRIVATE</span>
-                <span ng-if="!room.config.open">PUBLIC</span>
+                PRIVATE
             </label>
             <div class="password-container" ng-if="!room.config.open">
                 <label>Password:</label>
-                <input type="text" class="form-control" ng-model="room.config.password" readonly/>
+                <input type="text" class="form-control" ng-model="room.config.password" ng-disabled="true" />
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6" style="display:none">
+        <div class="bonus">
+            <h2 class="header">BONUS</h2>
+            <div class="input-range">
+                <span class="range-icon less-icon"><i class="icon-bonus-less"></i></span>
+                <input type="range" ng-model="room.config.bonusRate" ng-change="setBonusRate()" min="0" max="1" step="0.1" ng-disabled="!master" />
+                <span class="range-icon more-icon"><i class="icon-bonus-more"></i></span>
+                <span class="label">Bonus quantity:</span>
+            </div>
+            <div class="preset">
+                <span class="label">Preset:</span>
+                <ul class="list-inline">
+                    <li ng-repeat="preset in ::presets" ng-click="setPreset(preset)" class="btn btn-default" ng-class="{active: isPreset(preset)}">{{ ::preset.name }}</li>
+                    <li class="btn btn-default" ng-class="{active: isCustom()}">CUSTOM</li>
+                </ul>
+            </div>
+            <div class="bonuses">
+                <span class="label">Include:</span>
+                <ul class="list-inline">
+                    <li ng-repeat="bonus in ::bonuses" ng-click="toggleBonus(bonus)" class="bonus-icon" ng-class="{active: isBonusActive(bonus), disabled: !master}">
+                        <i class="icon-{{ ::bonus }}"></i>
+                    </li>
+                </ul>
+            </div>
+            <div class="bonuses">
+                <span class="label">Exclude:</span>
+                <ul class="list-inline">
+                    <li ng-repeat="bonus in ::bonuses" class="bonus-icon disabled">
+                        <i class="icon-{{ ::bonus }}"></i>
+                    </li>
+                </ul>
             </div>
         </div>
     </div>
