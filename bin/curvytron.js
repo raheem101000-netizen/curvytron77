@@ -3874,6 +3874,10 @@ RoomsController.prototype.onCreateRoom = function(client, data, callback)
     var name = data.name.substr(0, Room.prototype.maxLength).trim(),
         room = this.repository.create(name);
 
+    if (room && typeof data.open !== 'undefined' && data.open === false) {
+        room.config.setOpen(false);
+    }
+
     callback(room ? {success: true, room: room.serialize(false)} : {success: false});
 
     if (room) {

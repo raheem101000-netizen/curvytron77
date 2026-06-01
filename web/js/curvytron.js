@@ -4169,9 +4169,10 @@ RoomsController.prototype.createRoom = function() {
     var nameInput = document.querySelector('.kurver-input');
     var name = nameInput ? nameInput.value.trim() : this.$scope.roomName;
     if (!name) return;
+    var roomOpen = this.$scope.roomOpen !== false;
     this.$scope.showModal = false;
     this.$scope.roomName = name;
-    this.repository.create(name, this.onCreateRoom);
+    this.repository.create(name, roomOpen, this.onCreateRoom);
 };
 
 /**
@@ -8890,13 +8891,13 @@ RoomsRepository.prototype.get = function(name)
  * @param {String} name
  * @param {Function} callback
  */
-RoomsRepository.prototype.create = function(name, callback)
+RoomsRepository.prototype.create = function(name, open, callback)
 {
+    if (typeof(open) === 'function') { callback = open; open = true; }
     if (typeof(name) === 'string') {
         name = name.substr(0, Room.prototype.maxLength).trim();
     }
-
-    this.client.addEvent('room:create', {name: name}, callback);
+    this.client.addEvent('room:create', {name: name, open: open !== false}, callback);
 };
 
 /**
