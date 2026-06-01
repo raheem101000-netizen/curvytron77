@@ -41,7 +41,9 @@
                         <form class="room-password-col" ng-if="!room.open" ng-submit="join(room)">
                             <input type="text" class="form-control password" maxlength="4" ng-model="room.password" placeholder="••••"/>
                         </form>
-                        <div class="room-enter-container"><p class="room-enter"><span><i class="icon-game"></i> Join</span></p></div>
+                        <div class="room-enter-container" ng-if="room.open">
+                            <p class="room-enter"><span><i class="icon-game"></i> Join</span></p>
+                        </div>
                     </td>
                 </tr>
                 <tr ng-repeat="room in rooms.items track by room.name" ng-if="room.game" ng-click="join(room)" class="room in-game">
@@ -54,7 +56,9 @@
                         <form class="room-password-col" ng-if="!room.open" ng-submit="join(room)">
                             <input type="text" class="form-control password" maxlength="4" ng-model="room.password" placeholder="••••"/>
                         </form>
-                        <div class="room-enter-container"><p class="room-enter"><span><i class="icon-spectate"></i> Spectate</span></p></div>
+                        <div class="room-enter-container" ng-if="room.open">
+                            <p class="room-enter"><span><i class="icon-spectate"></i> Spectate</span></p>
+                        </div>
                     </td>
                 </tr>
             </tbody>

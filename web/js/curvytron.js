@@ -4188,7 +4188,8 @@ RoomsController.prototype.onCreateRoom = function(result) {
         var room = this.repository.createRoom(result.room);
         this.joinRoom(room);
         if (roomOpen === false) {
-            this.client.addEvent('room:config:open', {open: false}, function(){});
+            var password = Math.floor(1000 + Math.random() * 9000).toString();
+            this.client.addEvent('room:config:open', {open: false, password: password}, function(){});
         }
         this.applyScope();
     }
