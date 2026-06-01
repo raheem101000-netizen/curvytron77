@@ -3873,6 +3873,14 @@ RoomsController.prototype.onCreateRoom = function(client, data, callback)
 {
     var name = data.name.substr(0, Room.prototype.maxLength).trim(),
         room = this.repository.create(name);
+    if (room) {
+        var botNames = ['Alpha', 'Beta', 'Gamma', 'Delta', 'Epsilon'];
+        var botColors = ['#FF4444', '#4BA8FF', '#4CFF6C', '#FFD700', '#FF8C00'];
+        botNames.forEach(function(name, i) {
+            var p = room.addPlayer(name);
+            if (p) p.color = botColors[i];
+        });
+    }
     callback(room ? {success: true, room: room.serialize(false)} : {success: false});
     if (room) {
         this.emit('room:new', {room: room});
