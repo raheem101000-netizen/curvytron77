@@ -72,6 +72,52 @@ footer a { color: rgba(255,255,255,0.3) !important; }
 @keyframes shake { 0%,100%{transform:translateX(0)} 20%,60%{transform:translateX(-6px)} 40%,80%{transform:translateX(6px)} }
 @keyframes flash-red { 0%,100%{border-color:rgba(255,255,255,0.15)} 30%,70%{border-color:#ff5555} }
 .shake { animation: shake 0.4s ease; }
+
+/* Fix white on white text in room detail */
+.room-detail input[type=text],
+.player-name input,
+.player input,
+input.player-name,
+td input[type=text],
+.form-control {
+    color: #fff !important;
+    background: rgba(255,255,255,0.08) !important;
+    border: 1px solid rgba(255,255,255,0.15) !important;
+    border-radius: 6px !important;
+}
+.form-control::placeholder { color: rgba(255,255,255,0.4) !important; }
+
+/* Fix password field */
+.config input[type=text],
+.password-field input,
+input[ng-model="room.config.password"],
+input[ng-model*="password"] {
+    color: #fff !important;
+    background: rgba(255,255,255,0.08) !important;
+    border: 1px solid rgba(255,255,255,0.15) !important;
+}
+
+/* Fix color hex showing instead of swatch */
+.color-picker input[type=text] {
+    display: none !important;
+}
+
+/* Fix all table cells and labels in room detail */
+.room-detail td, .room-detail th,
+.room-detail label,
+.room-detail p,
+section.room td, section.room th,
+section.room label {
+    color: rgba(255,255,255,0.8) !important;
+}
+
+/* Fix light background rows */
+.room-detail tr, section.room tr {
+    background: transparent !important;
+}
+.room-detail tr:hover, section.room tr:hover {
+    background: rgba(255,255,255,0.04) !important;
+}
         </style>
         <meta property="og:title" content="Curvytron - A multiplayer tron-like game... with curves!"/>
         <meta property="og:type" content="game"/>
