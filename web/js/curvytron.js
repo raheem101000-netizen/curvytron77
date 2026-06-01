@@ -4172,7 +4172,7 @@ RoomsController.prototype.createRoom = function() {
     var roomOpen = this.$scope.roomOpen !== false;
     this.$scope.showModal = false;
     this.$scope.roomName = name;
-    this.repository.create(name, roomOpen, this.onCreateRoom);
+    this.repository.create(name, this.$scope.roomOpen !== false, this.onCreateRoom);
 };
 
 /**
@@ -8897,7 +8897,7 @@ RoomsRepository.prototype.create = function(name, open, callback)
     if (typeof(name) === 'string') {
         name = name.substr(0, Room.prototype.maxLength).trim();
     }
-    this.client.addEvent('room:create', {name: name, open: open !== false}, callback);
+    this.client.addEvent('room:create', {name: name, open: open}, callback);
 };
 
 /**
