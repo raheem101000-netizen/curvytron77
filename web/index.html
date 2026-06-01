@@ -149,14 +149,7 @@ section.room label {
                 </div>
             </div>
         <![endif]-->
-        <header>
-            <a href="/#/" class="logo animated">
-                <img src="images/logo.svg" alt="Curvytron" id="logo" />
-                <span class="brand">curvytron</span>
-            </a>
-        </header>
-
-        <div ng-controller="ProfileController" ng-if="profile">
+<div ng-controller="ProfileController" ng-if="profile">
             <ng-include src="'js/views/profile/link.html'"></ng-include>
             <div id="profile" class="panel" ng-include="'js/views/profile/profile.html'" onload="onLoaded()"></div>
         </div>
