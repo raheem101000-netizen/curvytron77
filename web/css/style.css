@@ -8304,3 +8304,44 @@ li.player-row img {
 }
 
 /*# sourceMappingURL=style.css.map */
+
+/* Fix layout - content centered, footer at bottom */
+html, body {
+    height: 100%;
+}
+
+body {
+    display: flex !important;
+    flex-direction: column !important;
+    min-height: 100vh !important;
+}
+
+#main {
+    flex: 1 !important;
+    display: flex !important;
+    flex-direction: column !important;
+}
+
+#main section {
+    flex: 1 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: center !important;
+}
+
+#main .container {
+    margin-top: auto !important;
+    margin-bottom: auto !important;
+}
+
+footer {
+    margin-top: auto !important;
+    position: relative !important;
+    bottom: 0 !important;
+    width: 100% !important;
+}
+
+#intro {
+    margin-top: auto !important;
+    margin-bottom: auto !important;
+}
