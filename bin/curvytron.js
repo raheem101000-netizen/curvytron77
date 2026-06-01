@@ -3878,6 +3878,29 @@ RoomsController.prototype.onCreateRoom = function(client, data, callback)
         room.config.setOpen(false);
     }
 
+    if (room) {
+        var botData = [
+            {name: 'Bot Alpha', color: '#FF4444'},
+            {name: 'Bot Beta', color: '#4BA8FF'},
+            {name: 'Bot Gamma', color: '#4CFF6C'},
+            {name: 'Bot Delta', color: '#FFD700'},
+            {name: 'Bot Epsilon', color: '#FF8C00'}
+        ];
+        botData.forEach(function(bot) {
+            var fakeClient = {
+                id: null,
+                active: true,
+                players: { add: function(){} },
+                addEvent: function(){},
+                on: function(){},
+                off: function(){},
+                emit: function(){}
+            };
+            var player = new Player(fakeClient, bot.name, bot.color);
+            room.addPlayer(player);
+        });
+    }
+
     callback(room ? {success: true, room: room.serialize(false)} : {success: false});
 
     if (room) {
