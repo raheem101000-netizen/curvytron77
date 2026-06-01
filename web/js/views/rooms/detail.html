@@ -2,7 +2,12 @@
     <div class="container room">
         <h2 class="header">
             {{ ::room.name }}
+            <i class="icon-params" ng-click="toggleParameters()" ng-class="{'active': displayParameters}"></i>
         </h2>
+
+        <div id="room-parameters" ng-controller="RoomConfigController" ng-if="displayParameters">
+            <ng-include src="'js/views/rooms/parameters.html'"></ng-include>
+        </div>
 
         <button type="button" class="btn start-now" ng-click="launch()" ng-if="master || launching">
             <span class="label" ng-if="!launching">Start now!</span>
