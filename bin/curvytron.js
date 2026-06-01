@@ -1566,10 +1566,7 @@ BaseGame.prototype.setSize = function()
  */
 BaseGame.prototype.getSize = function(players)
 {
-    var square = this.perPlayerSize * this.perPlayerSize,
-        size   = Math.sqrt(square + ((players - 1) * square / 5));
-
-    return Math.round(size);
+    return 680;
 };
 
 /**
