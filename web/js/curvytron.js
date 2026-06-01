@@ -3726,7 +3726,13 @@ RoomController.prototype.addPlayer = function(name, color)
     var $scope = this.$scope;
 
     name  = typeof(name) !== 'undefined' ? name : $scope.username;
-    color = typeof(color) !== 'undefined' ? color : null;
+
+    if (typeof(color) === 'undefined' || color === null) {
+        var palette = ['#FF4444', '#4BA8FF', '#4CFF6C', '#FFD700', '#FF8C00', '#DA70D6'];
+        var usedColors = this.room.players.items.map(function(p) { return p.color ? p.color.toUpperCase() : ''; });
+        var pick = palette.filter(function(c) { return usedColors.indexOf(c.toUpperCase()) === -1; });
+        color = pick.length ? pick[0] : palette[0];
+    }
 
     if (name) {
         this.repository.addPlayer(

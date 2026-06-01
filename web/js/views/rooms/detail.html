@@ -2,12 +2,7 @@
     <div class="container room">
         <h2 class="header">
             {{ ::room.name }}
-            <i class="icon-params" ng-click="toggleParameters()" ng-class="{'active': displayParameters}"></i>
         </h2>
-
-        <div id="room-parameters" ng-controller="RoomConfigController" ng-if="displayParameters">
-            <ng-include src="'js/views/rooms/parameters.html'"></ng-include>
-        </div>
 
         <button type="button" class="btn start-now" ng-click="launch()" ng-if="master || launching">
             <span class="label" ng-if="!launching">Start now!</span>
@@ -69,7 +64,7 @@
                             <input type="text" ng-model="player.name" ng-blur="setName(player)" class="form-control player-name" name="name" maxlength="{{ ::nameMaxLength }}" />
                         </td>
                         <td class="col-color">
-                            <input type="text" colorpicker="hex" colorpicker-position="right" ng-model="player.color" ng-blur="setColor(player)" class="form-control player-color" name="color" placeholder="#CCCCCC" style="border-color: {{ player.color }};" maxlength="{{ ::colorMaxLength }}" />
+                            <span class="line-color-preview" style="width:32px;height:32px;border-radius:50%;display:inline-block;background-color:{{ player.color }};border:2px solid rgba(255,255,255,0.3);"></span>
                         </td>
                         <td class="col-keys">
                             <button class="btn btn-default control"
