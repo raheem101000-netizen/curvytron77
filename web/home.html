@@ -23,7 +23,7 @@ body{font-family:'Space Grotesk',sans-serif;background:#05050f;min-height:100vh;
 .tut-card img{width:80px;height:80px;border-radius:50%;object-fit:cover;margin-bottom:10px;display:block;margin-left:auto;margin-right:auto;}
 .tut-title{font-size:11px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,0.35);margin-bottom:5px;}
 .tut-text{font-size:11px;color:rgba(255,255,255,0.4);line-height:1.6;}
-.modes{display:grid;grid-template-columns:1fr 1fr;gap:14px;width:100%;}
+.modes{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;width:100%;}
 .mode-card{border-radius:16px;padding:26px 20px;position:relative;overflow:hidden;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);text-decoration:none;display:block;transition:transform 0.15s,border-color 0.15s;}
 .mode-card:hover{transform:translateY(-3px);border-color:rgba(255,255,255,0.18);}
 .deco{position:absolute;top:0;right:0;opacity:0.07;pointer-events:none;}
@@ -87,7 +87,7 @@ body{font-family:'Space Grotesk',sans-serif;background:#05050f;min-height:100vh;
           <path d="M120 10 Q60 10 40 70 Q20 130 80 130" stroke="#50c8ff" stroke-width="40" fill="none" stroke-linecap="round"/>
         </svg>
         <div class="mode-badge">Single player</div>
-        <div class="mode-title">Solo Challenge</div>
+        <div class="mode-title">The Climb</div>
         <div class="mode-hook">Pay $2.99 — Win up to $100</div>
         <div class="mode-desc">Play 20 matches. Win a match +$5. Lose a match -$5. Cash out your balance at the end.</div>
         <div class="entry">Entry fee: <span>$2.99</span> · Max cashout: <span>$100</span></div>
@@ -98,7 +98,8 @@ body{font-family:'Space Grotesk',sans-serif;background:#05050f;min-height:100vh;
           <path d="M120 10 Q60 10 40 70 Q20 130 80 130" stroke="#b450ff" stroke-width="40" fill="none" stroke-linecap="round"/>
         </svg>
         <div class="mode-badge">Multiplayer</div>
-        <div class="mode-title">Play With Friends</div>
+        <div class="mode-title">Last Man Standing</div>
+        <div style="font-size:11px;color:rgba(255,255,255,0.4);margin-top:2px;margin-bottom:4px;">Play with your friends</div>
         <div class="mode-hook">Pay $2 — Win $5 to $10+</div>
         <div class="mode-desc">The more players in your room, the bigger the prize.</div>
         <table class="prize-table">
@@ -108,6 +109,17 @@ body{font-family:'Space Grotesk',sans-serif;background:#05050f;min-height:100vh;
           <tr><td>6 players</td><td>→ Win $10</td></tr>
         </table>
         <div class="mode-btn">Play Online →</div>
+      </a>
+      <a href="/multiplayer" class="mode-card casual">
+        <svg class="deco" width="140" height="140" viewBox="0 0 140 140">
+          <path d="M120 10 Q60 10 40 70 Q20 130 80 130" stroke="#50ffa0" stroke-width="40" fill="none" stroke-linecap="round"/>
+        </svg>
+        <div class="mode-badge" style="background:rgba(80,255,160,0.12);color:#50ffa0;border:1px solid rgba(80,255,160,0.2);">Free to play</div>
+        <div class="mode-title">Casual</div>
+        <div class="mode-hook" style="color:#50ffa0;">No entry fee — Just play</div>
+        <div class="mode-desc">Create a room, invite friends, play for fun. No money, no pressure. Just pure Kurver.</div>
+        <div style="display:inline-block;font-size:12px;font-weight:700;color:#50ffa0;background:rgba(80,255,160,0.1);border:1px solid rgba(80,255,160,0.2);border-radius:8px;padding:6px 14px;margin-bottom:14px;">FREE</div>
+        <div class="mode-btn" style="background:#50ffa0;color:#020818;">Play Free →</div>
       </a>
     </div>
     <div class="footer">Handmade with ♥</div>
