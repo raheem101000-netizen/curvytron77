@@ -6,7 +6,8 @@ const curv = require('./bin/curvytron.js');
 const path = require('path');
 const app = curv.app;
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'web/home.html')));
-app.get('/solo', (req, res) => res.sendFile(path.join(__dirname, 'web/solo.html')));
+app.get('/solo', (req, res) => res.sendFile(path.join(__dirname, 'web/solo-info.html')));
+app.get('/solo-game', (req, res) => res.sendFile(path.join(__dirname, 'web/solo.html')));
 app.get('/multiplayer', (req, res) => res.sendFile(path.join(__dirname, 'web/index.html')));
 
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
@@ -34,6 +35,27 @@ app.post('/create-checkout-session', async (req, res) => {
     res.json({ url: session.url });
 });
 
+app.post('/create-solo-checkout', async (req, res) => {
+    const session = await stripe.checkout.sessions.create({
+        payment_method_types: ['card'],
+        line_items: [{
+            price_data: {
+                currency: 'usd',
+                product_data: {
+                    name: 'Kurver Solo Challenge',
+                    description: 'Play 20 matches. Win up to $100.',
+                },
+                unit_amount: 299,
+            },
+            quantity: 1,
+        }],
+        mode: 'payment',
+        success_url: `${process.env.BASE_URL}/solo-game?paid=true`,
+        cancel_url: `${process.env.BASE_URL}/solo`,
+    });
+    res.json({ url: session.url });
+});
+
 app.post('/webhook', curv.express.raw({type: 'application/json'}), async (req, res) => {
     const sig = req.headers['stripe-signature'];
     let event;
@@ -51,5 +73,5 @@ app.post('/webhook', curv.express.raw({type: 'application/json'}), async (req, r
 
 // Move the routes before the static middleware (registered at index 2)
 const stack = app._router.stack;
-const added = stack.splice(stack.length - 5, 5);
+const added = stack.splice(stack.length - 7, 7);
 stack.splice(2, 0, ...added);

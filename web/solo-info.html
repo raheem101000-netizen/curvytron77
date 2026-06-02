@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Solo Challenge — Kurver</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Space Grotesk',sans-serif;background:#05050f;min-height:100vh;overflow-x:hidden;}
+.page{min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:48px 24px 64px;position:relative;overflow:hidden;}
+.glow{position:absolute;border-radius:50%;filter:blur(80px);pointer-events:none;}
+.glow-1{width:500px;height:500px;background:#3b0fa0;top:-150px;left:-150px;opacity:0.22;}
+.glow-2{width:400px;height:400px;background:#0f4fa0;top:0;right:-100px;opacity:0.18;}
+.glow-3{width:450px;height:450px;background:#a00f6e;bottom:0;left:50%;transform:translateX(-50%);opacity:0.16;}
+.content{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;width:100%;max-width:520px;}
+.back{align-self:flex-start;font-size:12px;color:rgba(255,255,255,0.35);text-decoration:none;letter-spacing:1px;margin-bottom:32px;transition:color 0.15s;}
+.back:hover{color:rgba(255,255,255,0.7);}
+.logo{display:flex;align-items:center;gap:12px;margin-bottom:8px;}
+.logo-svg{width:36px;height:36px;}
+.logo-text{font-size:26px;font-weight:700;letter-spacing:4px;color:#fff;}
+.badge{display:inline-block;font-size:10px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;padding:4px 12px;border-radius:20px;margin-bottom:28px;background:rgba(80,200,255,0.12);color:#50c8ff;border:1px solid rgba(80,200,255,0.2);}
+.title{font-size:36px;font-weight:700;color:#fff;text-align:center;margin-bottom:10px;}
+.subtitle{font-size:13px;color:rgba(255,255,255,0.38);text-align:center;margin-bottom:40px;line-height:1.6;}
+.card{background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:28px;width:100%;margin-bottom:16px;}
+.card-title{font-size:11px;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,0.3);margin-bottom:18px;}
+.rules{list-style:none;display:flex;flex-direction:column;gap:12px;}
+.rule{display:flex;align-items:center;gap:14px;font-size:14px;color:rgba(255,255,255,0.75);}
+.rule-icon{width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;}
+.rule-icon.win{background:rgba(76,255,108,0.1);}
+.rule-icon.lose{background:rgba(255,68,68,0.1);}
+.rule-icon.match{background:rgba(80,200,255,0.1);}
+.rule-icon.cash{background:rgba(255,215,0,0.1);}
+.rule-strong{font-weight:700;color:#fff;}
+.pricing{display:grid;grid-template-columns:1fr 1fr;gap:12px;width:100%;margin-bottom:28px;}
+.price-card{background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:20px;text-align:center;}
+.price-label{font-size:11px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,0.3);margin-bottom:8px;}
+.price-value{font-size:28px;font-weight:700;}
+.price-value.entry{color:#50c8ff;}
+.price-value.max{color:#4cff6c;}
+.price-note{font-size:11px;color:rgba(255,255,255,0.25);margin-top:4px;}
+.pay-btn{width:100%;padding:16px;background:#50c8ff;color:#020818;border:none;border-radius:12px;font-family:'Space Grotesk',sans-serif;font-size:16px;font-weight:700;cursor:pointer;letter-spacing:0.5px;transition:opacity 0.15s,transform 0.15s;}
+.pay-btn:hover{opacity:0.9;transform:translateY(-1px);}
+.pay-btn:active{transform:translateY(0);}
+.pay-btn:disabled{opacity:0.5;cursor:not-allowed;transform:none;}
+.footer{margin-top:32px;font-size:11px;color:rgba(255,255,255,0.12);letter-spacing:1px;}
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="glow glow-1"></div>
+  <div class="glow glow-2"></div>
+  <div class="glow glow-3"></div>
+  <div class="content">
+    <a href="/" class="back">← Home</a>
+    <div class="logo">
+      <svg class="logo-svg" viewBox="0 0 42 42" fill="none">
+        <path d="M7 35 Q12 8 21 21 Q30 34 35 7" stroke="#50c8ff" stroke-width="3.5" stroke-linecap="round" fill="none"/>
+        <path d="M5 24 Q13 3 22 16 Q31 29 37 12" stroke="#b450ff" stroke-width="2" stroke-linecap="round" fill="none" opacity="0.7"/>
+        <circle cx="21" cy="21" r="2.5" fill="#fff" opacity="0.6"/>
+      </svg>
+      <span class="logo-text">KURVER</span>
+    </div>
+    <div class="badge">Single Player</div>
+    <div class="title">Solo Challenge</div>
+    <div class="subtitle">20 matches against 5 bots. Your balance rises and falls with each result. Cash out at the end.</div>
+
+    <div class="card">
+      <div class="card-title">How it works</div>
+      <ul class="rules">
+        <li class="rule">
+          <div class="rule-icon match">🎮</div>
+          <span>Play <span class="rule-strong">20 matches</span> against 5 bots</span>
+        </li>
+        <li class="rule">
+          <div class="rule-icon win">✅</div>
+          <span>Win a match → <span class="rule-strong" style="color:#4cff6c;">+$5</span> to your balance</span>
+        </li>
+        <li class="rule">
+          <div class="rule-icon lose">❌</div>
+          <span>Lose a match → <span class="rule-strong" style="color:#ff4444;">-$5</span> from your balance</span>
+        </li>
+        <li class="rule">
+          <div class="rule-icon cash">💰</div>
+          <span>Cash out your balance after <span class="rule-strong">match 20</span></span>
+        </li>
+      </ul>
+    </div>
+
+    <div class="pricing">
+      <div class="price-card">
+        <div class="price-label">Entry fee</div>
+        <div class="price-value entry">$2.99</div>
+        <div class="price-note">one time</div>
+      </div>
+      <div class="price-card">
+        <div class="price-label">Max cashout</div>
+        <div class="price-value max">$100</div>
+        <div class="price-note">if you win all 20</div>
+      </div>
+    </div>
+
+    <button class="pay-btn" id="payBtn" onclick="startCheckout()">Pay $2.99 &amp; Play</button>
+
+    <div class="footer">Handmade with ♥</div>
+  </div>
+</div>
+<script>
+function startCheckout() {
+  var btn = document.getElementById('payBtn');
+  btn.disabled = true;
+  btn.textContent = 'Redirecting...';
+  fetch('/create-solo-checkout', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({})
+  })
+  .then(function(res) { return res.json(); })
+  .then(function(data) {
+    if (data.url) {
+      window.location.href = data.url;
+    } else {
+      btn.disabled = false;
+      btn.textContent = 'Pay $2.99 & Play';
+    }
+  })
+  .catch(function(err) {
+    console.error(err);
+    btn.disabled = false;
+    btn.textContent = 'Pay $2.99 & Play';
+  });
+}
+</script>
+</body>
+</html>
