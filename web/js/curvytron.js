@@ -3628,6 +3628,20 @@ RoomController.prototype.onJoined = function(result)
             var repo = this.repository;
             setTimeout(function() { repo.setConfigOpen(false, function(){}); }, 50);
         }
+
+        var urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('paid') === 'true') {
+            var self = this;
+            setTimeout(function() {
+                var scope = angular.element(document.getElementById('main')).scope();
+                if (scope && scope.setReady) {
+                    var player = scope.players && scope.players.items && scope.players.items.find(function(p) {
+                        return p.local;
+                    });
+                    if (player) scope.setReady(player);
+                }
+            }, 2000);
+        }
     } else {
         console.error('Could not join room %s: %s', result.name, result.error);
         this.goHome();
@@ -3885,18 +3899,28 @@ RoomController.prototype.setName = function(player)
  *
  * @return {Array}
  */
-RoomController.prototype.setReady = function(player)
-{
+RoomController.prototype.setReady = function(player) {
+    if (player.ready) return;
     if (!player.local) { return; }
-
-    this.repository.setReady(
-        player.id,
-        function (result) {
-            if (!result.success) {
-                console.error('Could not set player %s ready', player.name);
-            }
+    var self = this;
+    fetch('/create-checkout-session', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            playerId: player.id,
+            roomName: self.room.name,
+            playerName: player.name
+        })
+    })
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+        if (data.url) {
+            window.location.href = data.url;
         }
-    );
+    })
+    .catch(function(err) {
+        console.error('Payment error:', err);
+    });
 };
 
 /**
