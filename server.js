@@ -10,68 +10,7 @@ app.get('/solo', (req, res) => res.sendFile(path.join(__dirname, 'web/solo-info.
 app.get('/solo-game', (req, res) => res.sendFile(path.join(__dirname, 'web/solo.html')));
 app.get('/multiplayer', (req, res) => res.sendFile(path.join(__dirname, 'web/index.html')));
 
-const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
-
-app.post('/create-checkout-session', async (req, res) => {
-    const { playerId, roomName, playerName } = req.body;
-    const session = await stripe.checkout.sessions.create({
-        payment_method_types: ['card'],
-        line_items: [{
-            price_data: {
-                currency: 'usd',
-                product_data: {
-                    name: 'Kurver Room Entry',
-                    description: `Room: ${roomName}`,
-                },
-                unit_amount: 200,
-            },
-            quantity: 1,
-        }],
-        mode: 'payment',
-        success_url: `${process.env.BASE_URL}/multiplayer#/room/${roomName}?paid=true&playerId=${playerId}`,
-        cancel_url: `${process.env.BASE_URL}/multiplayer#/room/${roomName}`,
-        metadata: { playerId, roomName, playerName }
-    });
-    res.json({ url: session.url });
-});
-
-app.post('/create-solo-checkout', async (req, res) => {
-    const session = await stripe.checkout.sessions.create({
-        payment_method_types: ['card'],
-        line_items: [{
-            price_data: {
-                currency: 'usd',
-                product_data: {
-                    name: 'Kurver Solo Challenge',
-                    description: 'Play 20 matches. Win up to $100.',
-                },
-                unit_amount: 299,
-            },
-            quantity: 1,
-        }],
-        mode: 'payment',
-        success_url: `${process.env.BASE_URL}/solo-game?paid=true`,
-        cancel_url: `${process.env.BASE_URL}/solo`,
-    });
-    res.json({ url: session.url });
-});
-
-app.post('/webhook', curv.express.raw({type: 'application/json'}), async (req, res) => {
-    const sig = req.headers['stripe-signature'];
-    let event;
-    try {
-        event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
-    } catch (err) {
-        return res.status(400).send(`Webhook Error: ${err.message}`);
-    }
-    if (event.type === 'checkout.session.completed') {
-        const session = event.data.object;
-        console.log('Payment confirmed:', session.metadata);
-    }
-    res.json({received: true});
-});
-
 // Move the routes before the static middleware (registered at index 2)
 const stack = app._router.stack;
-const added = stack.splice(stack.length - 7, 7);
+const added = stack.splice(stack.length - 4, 4);
 stack.splice(2, 0, ...added);
