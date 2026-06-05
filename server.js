@@ -10,10 +10,11 @@ app.get('/solo', (req, res) => res.sendFile(path.join(__dirname, 'web/solo-info.
 app.get('/solo-game', (req, res) => res.sendFile(path.join(__dirname, 'web/solo.html')));
 app.get('/multiplayer', (req, res) => res.sendFile(path.join(__dirname, 'web/index.html')));
 app.get('/puz', (req, res) => res.sendFile(path.join(__dirname, 'web/puz.html')));
+app.get('/puz-home', (req, res) => res.sendFile(path.join(__dirname, 'web/puz-home.html')));
 
 // Move the routes before the static middleware (registered at index 2)
 const stack = app._router.stack;
-const added = stack.splice(stack.length - 5, 5);
+const added = stack.splice(stack.length - 6, 6);
 stack.splice(2, 0, ...added);
 
 // Socket.io for puz royale — polling only to avoid conflict with curvytron's faye-websocket
