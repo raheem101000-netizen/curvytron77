@@ -6,7 +6,19 @@
 <title>Puz Royale — Multiplayer</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
-body { background: #0d1a0d; font-family: system-ui, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; }
+body { background: #05050f; font-family: 'Space Grotesk', system-ui, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; }
+/* Mode selection */
+#mode-screen { display: flex; flex-direction: column; align-items: center; gap: 24px; padding: 48px 24px; }
+#mode-screen h2 { color: #fff; font-size: 28px; font-weight: 700; letter-spacing: 3px; }
+#mode-screen p { color: rgba(255,255,255,0.3); font-size: 12px; letter-spacing: 2px; text-transform: uppercase; }
+#mode-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; width: 100%; max-width: 560px; }
+.mode-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 28px 24px; display: flex; flex-direction: column; gap: 10px; cursor: pointer; transition: transform 0.15s, border-color 0.15s; }
+.mode-card:hover { transform: translateY(-3px); border-color: rgba(255,255,255,0.18); }
+.mode-card h3 { font-size: 20px; font-weight: 700; color: #fff; }
+.mode-card p { color: rgba(255,255,255,0.4); font-size: 12px; line-height: 1.6; letter-spacing: 0; text-transform: none; }
+.mode-card button { margin-top: 8px; padding: 10px 0; border: none; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; width: 100%; font-family: inherit; }
+#solo-btn { background: #50c8ff; color: #020818; }
+#multi-btn { background: #b450ff; color: #fff; }
 /* Lobby */
 #lobby { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 40px; background: rgba(0,0,0,0.8); border-radius: 12px; min-width: 320px; }
 #lobby h2 { color: #4CFF6C; font-size: 24px; letter-spacing: 2px; }
@@ -44,7 +56,26 @@ canvas { display: block; width: 100%; border-radius: 0 0 6px 6px; cursor: crossh
 </head>
 <body>
 
-<div id="lobby">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
+
+<div id="mode-screen">
+  <h2>PUZ ROYALE</h2>
+  <p>Choose your mode</p>
+  <div id="mode-cards">
+    <div class="mode-card" onclick="chooseSolo()">
+      <h3>Solo</h3>
+      <p>You vs 7 bots — last one standing wins</p>
+      <button id="solo-btn">Play Solo</button>
+    </div>
+    <div class="mode-card" onclick="chooseMulti()">
+      <h3>Multiplayer</h3>
+      <p>Play with friends — create a room and share the code</p>
+      <button id="multi-btn">Play Online</button>
+    </div>
+  </div>
+</div>
+
+<div id="lobby" style="display:none">
   <h2>PUZ ROYALE</h2>
   <p>You vs bots — last one standing wins</p>
   <p style="color:rgba(255,255,255,0.3);font-size:11px;">Share room code with friends to play together</p>
@@ -91,6 +122,18 @@ let posInterval = null;
 
 socket.on('connect', () => { myId = socket.id; });
 
+function chooseSolo() {
+    document.getElementById('mode-screen').style.display = 'none';
+    document.getElementById('gw').style.display = 'block';
+    isHost = true; lobbyPlayerCount = 1;
+    startGame();
+}
+
+function chooseMulti() {
+    document.getElementById('mode-screen').style.display = 'none';
+    document.getElementById('lobby').style.display = 'flex';
+}
+
 document.getElementById('join-btn').addEventListener('click', () => {
     const name = document.getElementById('name-input').value.trim() || 'Player';
     const room = document.getElementById('room-input').value.trim();
@@ -127,10 +170,14 @@ socket.on('puz:position', data => {
 
 document.getElementById('again-btn').addEventListener('click', () => {
     document.getElementById('result-screen').style.display = 'none';
-    socket.emit('puz:start', { roomId: myRoom });
+    if(myRoom) { socket.emit('puz:start', { roomId: myRoom }); } else { startGame(); }
 });
 
-document.getElementById('back-btn').addEventListener('click', () => location.reload());
+document.getElementById('back-btn').addEventListener('click', () => {
+    document.getElementById('result-screen').style.display = 'none';
+    document.getElementById('gw').style.display = 'none';
+    document.getElementById('mode-screen').style.display = 'flex';
+});
 
 // ── Game (based exactly on original) ──
 (function(){
