@@ -7,6 +7,10 @@ module.exports = function registerPuzHandlers(io, socket) {
         socket.to(data.roomId).emit('puz:position', data);
     });
 
+    socket.on('puz:zone', (data) => {
+        socket.to(data.roomId).emit('puz:zone', data);
+    });
+
     socket.on('puz:join', ({roomId, name, color}) => {
         socket.join(roomId);
         const room = puzRooms[roomId] || {id:roomId, players:[], hostId:null};

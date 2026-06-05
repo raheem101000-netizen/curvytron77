@@ -115,6 +115,7 @@ canvas { display: block; width: 100%; border-radius: 0 0 6px 6px; cursor: crossh
 const socket = io({ transports: ['polling'] });
 let myId = null, myRoom = null, myName = 'Player';
 let isHost = false, lobbyPlayerCount = 1;
+let gameMode = 'solo'; // 'solo' | 'multiplayer'
 let remotePlayers = {}; // id -> {x,y,angle,hp,alive,color,name,isBot,r}
 const MP_COLORS = ['#4CFF6C','#FF4444','#FFD700','#4BA8FF','#FF8C00','#DA70D6','#00CED1','#FF69B4'];
 let myColor = MP_COLORS[Math.floor(Math.random() * MP_COLORS.length)];
@@ -123,6 +124,7 @@ let posInterval = null;
 socket.on('connect', () => { myId = socket.id; });
 
 function chooseSolo() {
+    gameMode = 'solo';
     document.getElementById('mode-screen').style.display = 'none';
     document.getElementById('gw').style.display = 'block';
     isHost = true; lobbyPlayerCount = 1;
@@ -130,6 +132,7 @@ function chooseSolo() {
 }
 
 function chooseMulti() {
+    gameMode = 'multiplayer';
     document.getElementById('mode-screen').style.display = 'none';
     document.getElementById('lobby').style.display = 'flex';
 }
@@ -166,6 +169,13 @@ socket.on('puz:started', () => {
 
 socket.on('puz:position', data => {
     if(data.id !== myId) remotePlayers[data.id] = data;
+});
+
+socket.on('puz:zone', ({zoneSize: z, zoneTimer: t}) => {
+    if(gameMode === 'multiplayer' && !isHost) {
+        zoneSize = z;
+        document.getElementById('zone-txt').textContent = 'Zone closing: ' + Math.max(0, t) + 's';
+    }
 });
 
 document.getElementById('again-btn').addEventListener('click', () => {
@@ -370,6 +380,11 @@ function killEntity(e){
 }
 
 function countAlive(){
+    if(gameMode === 'multiplayer'){
+        let n = player.alive ? 1 : 0;
+        Object.values(remotePlayers).forEach(rp => { if(rp.alive && !rp.isBot) n++; });
+        return n;
+    }
     let n=player.alive?1:0;
     bots.forEach(b=>{ if(b.alive) n++; });
     return n;
@@ -488,10 +503,14 @@ function gameLoop(){
 function startZone(){
     zoneTimer=30;
     document.getElementById('zone-txt').textContent='Zone closing: 30s';
+    if(gameMode === 'multiplayer' && !isHost) return; // non-host syncs from host
     zoneInterval=setInterval(()=>{
         zoneTimer--;
         document.getElementById('zone-txt').textContent='Zone closing: '+Math.max(0,zoneTimer)+'s';
         if(zoneTimer<=0){ zoneSize+=18; zoneTimer=12; }
+        if(gameMode === 'multiplayer' && isHost && myRoom){
+            socket.emit('puz:zone', {roomId:myRoom, zoneSize, zoneTimer});
+        }
     },1000);
 }
 
@@ -506,33 +525,27 @@ window.startGame = function(){
     remotePlayers={};
     walls=generateWalls();
     player=mkPlayer();
-    // Host runs (TOTAL - humanCount) bots; non-host runs 0 (sees host's bots as remote)
-    const numBots=isHost ? Math.max(0, TOTAL - lobbyPlayerCount) : 0;
-    bots=Array.from({length:numBots},(_,i)=>mkBot(i));
+    if(gameMode === 'solo'){
+        bots=Array.from({length:TOTAL-1},(_,i)=>mkBot(i));
+    } else {
+        bots=[]; // multiplayer: no bots, real players only
+    }
     bullets=[]; zoneSize=0; placement=0; frameCount=0;
     gameActive=true;
     updateHUD();
     startZone();
-    // Position sync every 50ms
-    posInterval=setInterval(()=>{
-        if(!gameActive || !myRoom || !player) return;
-        socket.emit('puz:position',{
-            roomId:myRoom, id:myId,
-            x:player.x, y:player.y, angle:player.angle,
-            hp:player.hp, alive:player.alive,
-            color:myColor, name:myName, isBot:false, r:PLAYER_R
-        });
-        if(isHost && bots){
-            bots.forEach((bot,i)=>{
-                socket.emit('puz:position',{
-                    roomId:myRoom, id:'bot_'+i,
-                    x:bot.x, y:bot.y, angle:bot.angle,
-                    hp:bot.hp, alive:bot.alive,
-                    color:bot.color, name:bot.name, isBot:true, r:BOT_R
-                });
+    // Position sync in multiplayer only
+    if(gameMode === 'multiplayer' && myRoom){
+        posInterval=setInterval(()=>{
+            if(!gameActive || !player) return;
+            socket.emit('puz:position',{
+                roomId:myRoom, id:myId,
+                x:player.x, y:player.y, angle:player.angle,
+                hp:player.hp, alive:player.alive,
+                color:myColor, name:myName, isBot:false, r:PLAYER_R
             });
-        }
-    },16);
+        },16);
+    }
     animId=requestAnimationFrame(gameLoop);
 };
 
