@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Puz Royale — Multiplayer</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #0d1a0d; font-family: system-ui, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; }
+#lobby { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 40px; background: rgba(0,0,0,0.8); border-radius: 12px; min-width: 320px; }
+#lobby h2 { color: #4CFF6C; font-size: 24px; letter-spacing: 2px; }
+#lobby p { color: rgba(255,255,255,0.5); font-size: 13px; }
+#lobby input { width: 100%; padding: 10px 14px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.15); border-radius: 8px; color: #fff; font-size: 14px; outline: none; }
+#lobby input::placeholder { color: rgba(255,255,255,0.3); }
+#lobby button { width: 100%; padding: 11px; background: #4CFF6C; color: #111; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; }
+#lobby button:hover { background: #2ecc71; }
+#player-list { width: 100%; display: flex; flex-direction: column; gap: 6px; }
+.player-item { display: flex; align-items: center; gap: 8px; font-size: 13px; color: rgba(255,255,255,0.8); }
+.player-dot { width: 10px; height: 10px; border-radius: 50%; }
+#start-btn { display: none; }
+#gw { display: none; width: 100%; max-width: 680px; position: relative; user-select: none; }
+#hud { display: flex; align-items: center; justify-content: space-between; padding: 7px 14px; background: rgba(0,0,0,0.88); border-radius: 6px 6px 0 0; }
+#hud-left { display: flex; align-items: center; gap: 12px; }
+#hp-bar-wrap { display: flex; align-items: center; gap: 7px; }
+#hp-bar { width: 110px; height: 8px; background: rgba(255,255,255,0.15); border-radius: 4px; overflow: hidden; }
+#hp-fill { height: 100%; background: #4CFF6C; border-radius: 4px; transition: width 0.15s; }
+#hp-txt { color: #fff; font-size: 12px; min-width: 32px; }
+#ammo-txt { color: #FFD700; font-size: 12px; }
+#alive-txt { color: rgba(255,255,255,0.6); font-size: 12px; }
+#zone-txt { color: #FF6B6B; font-size: 12px; }
+canvas { display: block; width: 100%; border-radius: 0 0 6px 6px; cursor: crosshair; }
+#elim-feed { position: absolute; top: 46px; right: 10px; z-index: 9; display: flex; flex-direction: column; gap: 4px; pointer-events: none; }
+.elim-item { background: rgba(0,0,0,0.7); color: #fff; font-size: 11px; padding: 3px 9px; border-radius: 10px; border-left: 3px solid #fff; padding-left: 8px; }
+#result-screen { display: none; position: absolute; inset: 0; flex-direction: column; align-items: center; justify-content: center; background: rgba(0,0,0,0.9); z-index: 10; border-radius: 8px; }
+#result-screen h2 { font-size: 22px; margin-bottom: 8px; }
+#result-place { font-size: 48px; font-weight: 500; margin: 8px 0 4px; }
+#result-sub { color: rgba(255,255,255,0.5); font-size: 13px; margin-bottom: 24px; }
+#again-btn { background: #4CFF6C; color: #111; border: none; padding: 11px 32px; border-radius: 6px; font-size: 14px; font-weight: 500; cursor: pointer; }
+#again-btn:hover { background: #2ecc71; }
+#back-btn { margin-top: 10px; background: transparent; color: rgba(255,255,255,0.4); border: 1px solid rgba(255,255,255,0.15); padding: 8px 24px; border-radius: 6px; font-size: 13px; cursor: pointer; }
+</style>
+</head>
+<body>
+<div id="lobby">
+  <h2>PUZ ROYALE</h2>
+  <p>Multiplayer battle royale — last one standing wins</p>
+  <input id="name-input" type="text" placeholder="Your name" maxlength="16">
+  <input id="room-input" type="text" placeholder="Room code (create or join)" maxlength="20">
+  <button id="join-btn">Join / Create Room</button>
+  <div id="player-list"></div>
+  <button id="start-btn">Start Game</button>
+</div>
+
+<div id="gw">
+  <div id="hud">
+    <div id="hud-left">
+      <div id="hp-bar-wrap">
+        <div id="hp-bar"><div id="hp-fill" style="width:100%"></div></div>
+        <div id="hp-txt">100</div>
+      </div>
+      <div id="ammo-txt">Ammo: 30/30</div>
+    </div>
+    <div id="alive-txt">8 alive</div>
+    <div id="zone-txt">Zone closing: 30s</div>
+  </div>
+  <div id="elim-feed"></div>
+  <canvas id="c"></canvas>
+  <div id="result-screen">
+    <h2 id="result-title" style="color:#fff"></h2>
+    <div id="result-place"></div>
+    <div id="result-sub"></div>
+    <button id="again-btn">Play Again</button>
+    <button id="back-btn">Back to Lobby</button>
+  </div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+const socket = io({ transports: ['polling'] });
+const W = 680, H = 460;
+const PLAYER_R = 8, BOT_R = 8, BULLET_R = 3;
+
+let myId = null, myRoom = null, myName = '', myColor = '';
+let walls = [], players = {}, bullets = [], zoneSize = 0;
+let keys = {}, mouseX = W/2, mouseY = H/2, mouseDown = false;
+let gameActive = false, animId = null;
+const COLORS = ['#4CFF6C','#FF4444','#FFD700','#4BA8FF','#FF8C00','#DA70D6','#00CED1','#FF69B4'];
+
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+canvas.width = W; canvas.height = H;
+
+// Input
+canvas.addEventListener('mousemove', e => {
+    const r = canvas.getBoundingClientRect();
+    mouseX = (e.clientX - r.left) * (W / r.width);
+    mouseY = (e.clientY - r.top) * (H / r.height);
+});
+canvas.addEventListener('mousedown', e => { if(e.button===0) mouseDown=true; });
+canvas.addEventListener('mouseup', e => { if(e.button===0) mouseDown=false; });
+document.addEventListener('keydown', e => {
+    keys[e.code] = true;
+    if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Space'].includes(e.code)) e.preventDefault();
+    if(e.code==='KeyR') socket.emit('puz:reload', {roomId:myRoom});
+});
+document.addEventListener('keyup', e => keys[e.code] = false);
+
+// Input loop — send to server every 16ms
+setInterval(() => {
+    if(!gameActive || !myRoom) return;
+    const me = players[myId];
+    if(!me || !me.alive) return;
+    const angle = Math.atan2(mouseY - me.y, mouseX - me.x);
+    socket.emit('puz:input', {
+        roomId: myRoom,
+        input: {
+            up: !!(keys['ArrowUp']||keys['KeyW']),
+            down: !!(keys['ArrowDown']||keys['KeyS']),
+            left: !!(keys['ArrowLeft']||keys['KeyA']),
+            right: !!(keys['ArrowRight']||keys['KeyD']),
+            angle,
+            shooting: mouseDown
+        }
+    });
+}, 16);
+
+// Join room
+document.getElementById('join-btn').addEventListener('click', () => {
+    const name = document.getElementById('name-input').value.trim();
+    const room = document.getElementById('room-input').value.trim();
+    if(!name || !room) return alert('Enter your name and a room code');
+    myName = name;
+    myRoom = room;
+    myColor = COLORS[Math.floor(Math.random()*COLORS.length)];
+    socket.emit('puz:join', {roomId:room, name, color:myColor});
+    document.getElementById('join-btn').disabled = true;
+});
+
+// Start game (host)
+document.getElementById('start-btn').addEventListener('click', () => {
+    socket.emit('puz:start', {roomId:myRoom});
+});
+
+// Socket events
+socket.on('connect', () => { myId = socket.id; });
+
+socket.on('puz:lobby', ({players: lobbyPlayers, hostId}) => {
+    const list = document.getElementById('player-list');
+    list.innerHTML = lobbyPlayers.map(p =>
+        `<div class="player-item"><div class="player-dot" style="background:${p.color}"></div>${p.name}${p.id===hostId?' 👑':''}</div>`
+    ).join('');
+    const startBtn = document.getElementById('start-btn');
+    if(hostId === myId) startBtn.style.display = 'block';
+});
+
+socket.on('puz:started', data => {
+    walls = data.walls;
+    document.getElementById('lobby').style.display = 'none';
+    document.getElementById('gw').style.display = 'block';
+    gameActive = true;
+    animId = requestAnimationFrame(renderLoop);
+});
+
+socket.on('puz:state', state => {
+    state.players.forEach(p => { players[p.id] = p; });
+    bullets = state.bullets;
+    zoneSize = state.zoneSize;
+    document.getElementById('alive-txt').textContent = state.aliveCount + ' alive';
+    const me = players[myId];
+    if(me) updateHUD(me);
+});
+
+socket.on('puz:zone', ({zoneSize:z, timer}) => {
+    zoneSize = z;
+    document.getElementById('zone-txt').textContent = 'Zone closing: '+timer+'s';
+});
+
+socket.on('puz:kill', ({name, color, place}) => {
+    const feed = document.getElementById('elim-feed');
+    const el = document.createElement('div');
+    el.className = 'elim-item';
+    el.style.borderLeftColor = color;
+    el.textContent = name + ' eliminated';
+    feed.appendChild(el);
+    setTimeout(()=>{ el.style.opacity='0'; setTimeout(()=>el.remove(),500); }, 2500);
+});
+
+socket.on('puz:end', ({winnerId, winnerName, total}) => {
+    gameActive = false;
+    cancelAnimationFrame(animId);
+    const isWinner = winnerId === myId;
+    const place = isWinner ? 1 : Object.values(players).filter(p=>!p.alive).length;
+    const suffs = ['st','nd','rd','th','th','th','th','th'];
+    document.getElementById('result-title').textContent = isWinner ? 'Winner!' : 'Eliminated';
+    document.getElementById('result-title').style.color = isWinner ? '#FFD700' : '#FF4444';
+    document.getElementById('result-place').textContent = place + (suffs[Math.min(place-1,7)]||'th');
+    document.getElementById('result-place').style.color = isWinner ? '#FFD700' : 'rgba(255,255,255,0.9)';
+    document.getElementById('result-sub').textContent = 'out of ' + total + ' players';
+    document.getElementById('result-screen').style.display = 'flex';
+});
+
+document.getElementById('again-btn').addEventListener('click', () => {
+    document.getElementById('result-screen').style.display = 'none';
+    socket.emit('puz:start', {roomId:myRoom});
+});
+
+document.getElementById('back-btn').addEventListener('click', () => {
+    location.reload();
+});
+
+// Rendering
+function updateHUD(me) {
+    const hp = Math.max(0, Math.round(me.hp));
+    document.getElementById('hp-fill').style.width = (hp/me.maxHp*100)+'%';
+    document.getElementById('hp-fill').style.background = hp>50?'#4CFF6C':hp>25?'#FFD700':'#FF4444';
+    document.getElementById('hp-txt').textContent = hp;
+    document.getElementById('ammo-txt').textContent = me.reloading ? 'Reloading...' : `Ammo: ${me.ammo}/${me.maxAmmo}`;
+}
+
+function drawMap() {
+    ctx.fillStyle='#1a2a1a'; ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='#0d1a0d';
+    const TILE=20;
+    for(let x=0;x<W;x+=TILE)
+        for(let y=0;y<H;y+=TILE)
+            if((x/TILE+y/TILE)%2===0) ctx.fillRect(x,y,TILE,TILE);
+
+    if(zoneSize>0){
+        ctx.fillStyle='rgba(255,50,50,0.18)';
+        ctx.fillRect(0,0,W,zoneSize); ctx.fillRect(0,H-zoneSize,W,zoneSize);
+        ctx.fillRect(0,zoneSize,zoneSize,H-zoneSize*2); ctx.fillRect(W-zoneSize,zoneSize,zoneSize,H-zoneSize*2);
+        ctx.strokeStyle='rgba(255,80,80,0.8)'; ctx.lineWidth=2;
+        ctx.strokeRect(zoneSize,zoneSize,W-zoneSize*2,H-zoneSize*2);
+    }
+
+    walls.forEach(w=>{
+        ctx.fillStyle='#3a5a3a'; ctx.fillRect(w.x,w.y,w.w,w.h);
+        ctx.strokeStyle='#2a4a2a'; ctx.lineWidth=1; ctx.strokeRect(w.x,w.y,w.w,w.h);
+    });
+}
+
+function drawPlayer(p) {
+    if(!p.alive) return;
+    const isMe = p.id === myId;
+    ctx.save(); ctx.translate(p.x, p.y);
+    ctx.beginPath(); ctx.arc(0,0,p.r+2,0,Math.PI*2); ctx.fillStyle='rgba(0,0,0,0.3)'; ctx.fill();
+    ctx.beginPath(); ctx.arc(0,0,p.r,0,Math.PI*2); ctx.fillStyle=p.color; ctx.fill();
+    if(isMe){ ctx.beginPath(); ctx.arc(0,0,p.r+3,0,Math.PI*2); ctx.strokeStyle='rgba(255,255,255,0.4)'; ctx.lineWidth=2; ctx.stroke(); }
+    const gx=Math.cos(p.angle)*(p.r+4), gy=Math.sin(p.angle)*(p.r+4);
+    ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(gx,gy);
+    ctx.strokeStyle='rgba(255,255,255,0.9)'; ctx.lineWidth=3; ctx.lineCap='round'; ctx.stroke();
+    // HP bar
+    const hpW=p.r*2.2, hpX=-hpW/2, hpY=-p.r-7;
+    ctx.fillStyle='rgba(0,0,0,0.5)'; ctx.fillRect(hpX,hpY,hpW,4);
+    const pct=Math.max(0,p.hp/p.maxHp);
+    ctx.fillStyle=pct>0.5?'#4CFF6C':pct>0.25?'#FFD700':'#FF4444';
+    ctx.fillRect(hpX,hpY,hpW*pct,4);
+    // Name
+    ctx.fillStyle='rgba(255,255,255,0.7)'; ctx.font='9px system-ui'; ctx.textAlign='center';
+    ctx.fillText(p.name||'', 0, -p.r-10);
+    // Crosshair for me
+    if(isMe){
+        const mx=mouseX-p.x, my=mouseY-p.y;
+        ctx.strokeStyle='rgba(255,255,255,0.5)'; ctx.lineWidth=1; ctx.setLineDash([3,3]);
+        ctx.beginPath(); ctx.moveTo(mx-10,my); ctx.lineTo(mx+10,my); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(mx,my-10); ctx.lineTo(mx,my+10); ctx.stroke();
+        ctx.setLineDash([]);
+    }
+    ctx.restore();
+}
+
+function renderLoop() {
+    if(!gameActive) return;
+    drawMap();
+    Object.values(players).forEach(drawPlayer);
+    bullets.forEach(b=>{
+        ctx.beginPath(); ctx.arc(b.x,b.y,BULLET_R,0,Math.PI*2);
+        ctx.fillStyle=b.color; ctx.fill();
+    });
+    animId = requestAnimationFrame(renderLoop);
+}
+
+// Initial canvas draw
+ctx.fillStyle='#1a2a1a'; ctx.fillRect(0,0,W,H);
+</script>
+</body>
+</html>
