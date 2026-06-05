@@ -111,6 +111,22 @@ canvas { display: block; width: 100%; border-radius: 0 0 6px 6px; cursor: crossh
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
+// ── Check URL params — if coming from Curvytron room, skip screens ──
+(function(){
+    const p = new URLSearchParams(window.location.search);
+    const urlRoom = p.get('room');
+    const urlMode = p.get('mode');
+    if(urlRoom && urlMode === 'multiplayer'){
+        // Hide mode screen, skip lobby, go straight to multiplayer game
+        document.getElementById('mode-screen').style.display = 'none';
+        document.getElementById('lobby').style.display = 'none';
+        document.getElementById('gw').style.display = 'block';
+        // Set globals before game code loads
+        window._puzUrlRoom = urlRoom;
+        window._puzUrlMode = 'multiplayer';
+    }
+})();
+
 // ── Multiplayer state ──
 const socket = io({ transports: ['polling'] });
 let myId = null, myRoom = null, myName = 'Player';
@@ -121,7 +137,19 @@ const MP_COLORS = ['#4CFF6C','#FF4444','#FFD700','#4BA8FF','#FF8C00','#DA70D6','
 let myColor = MP_COLORS[Math.floor(Math.random() * MP_COLORS.length)];
 let posInterval = null;
 
-socket.on('connect', () => { myId = socket.id; });
+socket.on('connect', () => {
+    myId = socket.id;
+    // Auto-join if redirected from Curvytron room
+    if(window._puzUrlRoom && window._puzUrlMode === 'multiplayer'){
+        gameMode = 'multiplayer';
+        myRoom = window._puzUrlRoom;
+        myName = 'Player';
+        socket.emit('puz:join', {roomId: myRoom, name: myName, color: myColor});
+        // Start game immediately — we already have the room
+        isHost = false; lobbyPlayerCount = 2;
+        startGame();
+    }
+});
 
 function chooseSolo() {
     gameMode = 'solo';
@@ -132,9 +160,7 @@ function chooseSolo() {
 }
 
 function chooseMulti() {
-    gameMode = 'multiplayer';
-    document.getElementById('mode-screen').style.display = 'none';
-    document.getElementById('lobby').style.display = 'flex';
+    window.location.href = '/multiplayer?game=puz';
 }
 
 document.getElementById('join-btn').addEventListener('click', () => {
