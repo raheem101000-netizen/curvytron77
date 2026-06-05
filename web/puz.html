@@ -43,7 +43,8 @@ canvas { display: block; width: 100%; border-radius: 0 0 6px 6px; cursor: crossh
 <body>
 <div id="lobby">
   <h2>PUZ ROYALE</h2>
-  <p>Multiplayer battle royale — last one standing wins</p>
+  <p>You vs bots (up to 7) — last one standing wins</p>
+  <p style="color:rgba(255,255,255,0.3);font-size:11px;margin-top:4px;">For multiplayer: share your room code with friends and they join too</p>
   <input id="name-input" type="text" placeholder="Your name" maxlength="16">
   <input id="room-input" type="text" placeholder="Room code (create or join)" maxlength="20">
   <button id="join-btn">Join / Create Room</button>
@@ -155,6 +156,7 @@ socket.on('puz:lobby', ({players: lobbyPlayers, hostId}) => {
 
 socket.on('puz:started', data => {
     walls = data.walls;
+    console.log('game started, walls:', walls.length);
     document.getElementById('lobby').style.display = 'none';
     document.getElementById('gw').style.display = 'block';
     gameActive = true;
@@ -162,6 +164,7 @@ socket.on('puz:started', data => {
 });
 
 socket.on('puz:state', state => {
+    console.log('state received', state.players.length, 'players');
     state.players.forEach(p => { players[p.id] = p; });
     bullets = state.bullets;
     zoneSize = state.zoneSize;
@@ -270,7 +273,7 @@ function drawPlayer(p) {
 }
 
 function renderLoop() {
-    if(!gameActive) return;
+    if(!gameActive) { animId = requestAnimationFrame(renderLoop); return; }
     drawMap();
     Object.values(players).forEach(drawPlayer);
     bullets.forEach(b=>{
