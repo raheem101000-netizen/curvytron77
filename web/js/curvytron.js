@@ -3729,11 +3729,17 @@ RoomController.prototype.launch = function()
     if (this.repository.amIMaster()) {
         var urlParams = new URLSearchParams(window.location.search);
         var isCasual = urlParams.get('mode') === 'casual';
+        var isPuz = window._launchPuzRoyale || urlParams.get('game') === 'puz';
         var players = this.players ? this.players.items : [];
 
         if (isCasual) {
             if (players.length < 2) {
                 alert('Need at least 2 players to start.');
+                return;
+            }
+        } else if (isPuz) {
+            if (players.length < 2) {
+                alert('Need at least 2 players to start Puz Royale.');
                 return;
             }
         } else {

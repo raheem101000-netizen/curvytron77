@@ -186,22 +186,23 @@ section.room label {
         <script src="js/dependencies.js"></script>
         <script src="js/curvytron.js"></script>
         <script>
-// Puz Royale mode — intercept room launch to redirect to /puz instead
+// Puz Royale mode — set flag and patch start to redirect all players
 (function(){
     var params = new URLSearchParams(window.location.search);
     if(params.get('game') !== 'puz') return;
+    window._launchPuzRoyale = true;
 
-    // Show banner
+    // Banner
     var banner = document.createElement('div');
-    banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:rgba(76,255,108,0.15);border-bottom:1px solid rgba(76,255,108,0.3);padding:10px 20px;text-align:center;font-family:Space Grotesk,sans-serif;font-size:13px;font-weight:600;color:#4CFF6C;letter-spacing:1px;';
-    banner.textContent = '🎮 PUZ ROYALE — Room Lobby — When everyone is ready, click Start Now to launch';
+    banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:rgba(255,50,50,0.12);border-bottom:1px solid rgba(255,50,50,0.3);padding:10px 20px;text-align:center;font-family:Space Grotesk,sans-serif;font-size:13px;font-weight:600;color:#FF5555;letter-spacing:1px;';
+    banner.textContent = '🎮 PUZ ROYALE — All players join, then host clicks Start to launch the battle';
     document.body.appendChild(banner);
 
-    // Patch RoomController.prototype.start to redirect to /puz
+    // Patch start — fires on ALL clients via room:game:start event, redirects everyone to Puz Royale
     var _origStart = RoomController.prototype.start;
     RoomController.prototype.start = function(e) {
         var roomName = this.room && this.room.name;
-        if(roomName){
+        if(roomName) {
             window.location.href = 'https://battle-royale-4ltk.onrender.com/play?mode=multiplayer&room=' + encodeURIComponent(roomName) + '&paid=true';
         } else {
             _origStart.call(this, e);
