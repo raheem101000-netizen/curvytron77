@@ -202,7 +202,7 @@ section.room label {
     RoomController.prototype.start = function(e) {
         var roomName = this.room && this.room.name;
         if(roomName){
-            window.location.href = '/puz?room=' + encodeURIComponent(roomName) + '&mode=multiplayer';
+            window.location.href = 'https://battle-royale-4ltk.onrender.com/play?mode=multiplayer&room=' + encodeURIComponent(roomName) + '&paid=true';
         } else {
             _origStart.call(this, e);
         }
