@@ -211,21 +211,25 @@ section.room label {
 (function(){
     var params = new URLSearchParams(window.location.search);
     if(params.get('paid') !== 'true') return;
+    console.log('paid=true detected, waiting for Angular...');
     var attempts = 0;
     var interval = setInterval(function(){
         attempts++;
+        console.log('attempt', attempts);
         try {
+            var allScopes = document.querySelectorAll('[ng-controller]');
+            console.log('ng-controller elements found:', allScopes.length);
+            allScopes.forEach(function(el){
+                var s = angular.element(el).scope();
+                console.log('scope keys:', s ? Object.keys(s).filter(function(k){ return k[0] !== '$'; }) : 'null');
+            });
             var scope = angular.element(document.querySelector('[ng-controller]')).scope();
-            if(scope && scope.setReady && scope.players && scope.players.items){
-                var local = scope.players.items.filter(function(p){ return p.local; })[0];
-                if(local && !local.ready){
-                    scope.$apply(function(){
-                        scope.setReady(local);
-                    });
-                }
-                clearInterval(interval);
+            if(scope){
+                console.log('has setReady:', !!scope.setReady);
+                console.log('has players:', !!scope.players);
+                if(scope.players) console.log('player items:', scope.players.items ? scope.players.items.length : 'no items');
             }
-        } catch(e) {}
+        } catch(e){ console.log('error:', e.message); }
         if(attempts > 20) clearInterval(interval);
     }, 500);
 })();
