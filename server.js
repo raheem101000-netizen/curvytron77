@@ -10,7 +10,7 @@ const app = curv.app;
 
 // Stripe webhook must use raw body — register before json middleware
 app.post('/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
-    const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+    if (!stripe) return res.status(503).json({ error: 'Payments not configured' });
     const db = require('./db');
     const sig = req.headers['stripe-signature'];
     let event;
@@ -32,11 +32,11 @@ app.post('/webhook', express.raw({ type: 'application/json' }), async (req, res)
 
 app.use(express.json());
 
-const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+const stripe = process.env.STRIPE_SECRET_KEY ? require('stripe')(process.env.STRIPE_SECRET_KEY) : null;
 const db = require('./db');
 const { Resend } = require('resend');
-const resend = new Resend(process.env.RESEND_API_KEY);
-db.initDb().catch(console.error);
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
+if (process.env.KURVER_DATABASE_URL) db.initDb().catch(console.error);
 
 async function payoutWinner(email, amount, description) {
     try {
@@ -123,6 +123,7 @@ async function payoutWinner(email, amount, description) {
 
 // Solo Challenge checkout — $2.99
 app.post('/create-solo-checkout', async (req, res) => {
+    if (!stripe) return res.status(503).json({ error: 'Payments not configured' });
     try {
         const session = await stripe.checkout.sessions.create({
             payment_method_types: ['card'],
@@ -150,6 +151,7 @@ app.post('/create-solo-checkout', async (req, res) => {
 
 // Multiplayer checkout — $2 per player
 app.post('/create-multiplayer-checkout', async (req, res) => {
+    if (!stripe) return res.status(503).json({ error: 'Payments not configured' });
     try {
         const { roomName, playerName } = req.body;
         const session = await stripe.checkout.sessions.create({
@@ -186,6 +188,7 @@ app.get('/balance', async (req, res) => {
 
 // Credit winner after game ends
 app.post('/credit-winner', async (req, res) => {
+    if (!stripe) return res.status(503).json({ error: 'Payments not configured' });
     try {
         const { email, amount, description } = req.body;
         const secret = req.headers['x-internal-secret'];
@@ -199,6 +202,7 @@ app.post('/credit-winner', async (req, res) => {
 
 // Withdraw — automatic payout to original payment method
 app.post('/withdraw', async (req, res) => {
+    if (!stripe) return res.status(503).json({ error: 'Payments not configured' });
     try {
         const { email } = req.body;
         const balance = await db.getBalance(email);

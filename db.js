@@ -1,6 +1,6 @@
 'use strict';
 const { neon } = require('@neondatabase/serverless');
-const sql = neon(process.env.KURVER_DATABASE_URL);
+const sql = process.env.KURVER_DATABASE_URL ? neon(process.env.KURVER_DATABASE_URL) : null;
 
 async function initDb() {
     await sql`
