@@ -3903,7 +3903,7 @@ RoomController.prototype.setReady = function(player) {
     if (player.ready) return;
     if (!player.local) { return; }
     var self = this;
-    fetch('/create-checkout-session', {
+    fetch('/create-multiplayer-checkout', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({
