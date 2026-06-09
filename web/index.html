@@ -208,6 +208,27 @@ section.room label {
         }
     };
 })();
+(function(){
+    var params = new URLSearchParams(window.location.search);
+    if(params.get('paid') !== 'true') return;
+    var attempts = 0;
+    var interval = setInterval(function(){
+        attempts++;
+        try {
+            var scope = angular.element(document.querySelector('[ng-controller]')).scope();
+            if(scope && scope.setReady && scope.players && scope.players.items){
+                var local = scope.players.items.filter(function(p){ return p.local; })[0];
+                if(local && !local.ready){
+                    scope.$apply(function(){
+                        scope.setReady(local);
+                    });
+                }
+                clearInterval(interval);
+            }
+        } catch(e) {}
+        if(attempts > 20) clearInterval(interval);
+    }, 500);
+})();
         </script>
         <script>
 var kurverRoomType = null;
