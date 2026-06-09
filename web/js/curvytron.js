@@ -3727,6 +3727,22 @@ RoomController.prototype.goHome = function()
 RoomController.prototype.launch = function()
 {
     if (this.repository.amIMaster()) {
+        var urlParams = new URLSearchParams(window.location.search);
+        var isCasual = urlParams.get('mode') === 'casual';
+        var players = this.players ? this.players.items : [];
+
+        if (isCasual) {
+            if (players.length < 2) {
+                alert('Need at least 2 players to start.');
+                return;
+            }
+        } else {
+            var readyCount = players.filter(function(p){ return p.ready; }).length;
+            if (readyCount < 3) {
+                alert('At least 3 players must be ready and paid before starting.');
+                return;
+            }
+        }
         this.repository.launch();
     }
 };
@@ -3901,26 +3917,27 @@ RoomController.prototype.setName = function(player)
  */
 RoomController.prototype.setReady = function(player) {
     if (player.ready) return;
-    if (!player.local) { return; }
+    if (!player.local) return;
+
+    // Skip payment for casual mode
+    var urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('mode') === 'casual') {
+        this.repository.setReady(player, function(){});
+        return;
+    }
+
     var self = this;
     fetch('/create-multiplayer-checkout', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({
-            playerId: player.id,
-            roomName: self.room.name,
-            playerName: player.name
+            roomName: self.room ? self.room.name : '',
+            playerName: player.name || ''
         })
     })
     .then(function(res) { return res.json(); })
-    .then(function(data) {
-        if (data.url) {
-            window.location.href = data.url;
-        }
-    })
-    .catch(function(err) {
-        console.error('Payment error:', err);
-    });
+    .then(function(data) { if (data.url) window.location.href = data.url; })
+    .catch(function(err) { console.error('Payment error:', err); });
 };
 
 /**
