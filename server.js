@@ -34,7 +34,92 @@ app.use(express.json());
 
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const db = require('./db');
+const { Resend } = require('resend');
+const resend = new Resend(process.env.RESEND_API_KEY);
 db.initDb().catch(console.error);
+
+async function payoutWinner(email, amount, description) {
+    try {
+        let connectId = await db.getConnectAccount(email);
+
+        if (!connectId) {
+            const account = await stripe.accounts.create({
+                type: 'express',
+                email: email,
+                capabilities: { transfers: { requested: true } },
+            });
+            connectId = account.id;
+            await db.addBalance(email, 0, 'account_created', null);
+            await db.saveConnectAccount(email, connectId);
+            const accountLink = await stripe.accountLinks.create({
+                account: connectId,
+                refresh_url: `${process.env.BASE_URL}/wallet`,
+                return_url: `${process.env.BASE_URL}/wallet?onboarded=true`,
+                type: 'account_onboarding',
+            });
+            await resend.emails.send({
+                from: 'Kurver <noreply@kurver.gg>',
+                to: email,
+                subject: `You won $${amount}! Set up your payout account`,
+                html: `
+                    <div style="font-family:sans-serif;max-width:500px;margin:0 auto;padding:24px;">
+                        <h2 style="color:#50c8ff;">🎉 You won $${amount}!</h2>
+                        <p style="color:#333;margin:16px 0;">Congratulations! You have <strong>$${amount}</strong> waiting for you from Kurver.</p>
+                        <p style="color:#333;margin:16px 0;">Set up your payout account to receive your winnings. This takes 2-3 minutes and you only need to do it once.</p>
+                        <a href="${accountLink.url}" style="display:inline-block;background:#50c8ff;color:#020818;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;margin:16px 0;">Set Up Payout Account →</a>
+                        <p style="color:#999;font-size:12px;margin-top:24px;">Once set up, all future winnings will be paid automatically to your debit card or bank account.</p>
+                    </div>
+                `
+            });
+            await db.addBalance(email, amount, description, null);
+            console.log(`Onboarding email sent to ${email} for $${amount}`);
+            return { status: 'onboarding_required', email };
+        }
+
+        const account = await stripe.accounts.retrieve(connectId);
+
+        if (!account.charges_enabled) {
+            const accountLink = await stripe.accountLinks.create({
+                account: connectId,
+                refresh_url: `${process.env.BASE_URL}/wallet`,
+                return_url: `${process.env.BASE_URL}/wallet?onboarded=true`,
+                type: 'account_onboarding',
+            });
+            await resend.emails.send({
+                from: 'Kurver <noreply@kurver.gg>',
+                to: email,
+                subject: `Complete your payout setup to receive $${amount}`,
+                html: `
+                    <div style="font-family:sans-serif;max-width:500px;margin:0 auto;padding:24px;">
+                        <h2 style="color:#50c8ff;">💰 $${amount} is waiting for you</h2>
+                        <p style="color:#333;margin:16px 0;">You haven't completed your payout account setup yet. Complete it now to receive your winnings.</p>
+                        <a href="${accountLink.url}" style="display:inline-block;background:#50c8ff;color:#020818;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;margin:16px 0;">Complete Setup →</a>
+                    </div>
+                `
+            });
+            await db.addBalance(email, amount, description, null);
+            return { status: 'onboarding_incomplete', email };
+        }
+
+        const amountInCents = Math.floor(amount * 100);
+        const transfer = await stripe.transfers.create({
+            amount: amountInCents,
+            currency: 'usd',
+            destination: connectId,
+            description: description,
+        });
+        await db.addBalance(email, amount, description, null);
+        await db.deductBalance(email, amount);
+        await db.createWithdrawal(email, amount, transfer.id);
+        console.log(`Payout $${amount} sent to ${email}`);
+        return { status: 'paid', transfer_id: transfer.id };
+
+    } catch (err) {
+        console.error('Payout error:', err);
+        await db.addBalance(email, amount, description + '_fallback', null);
+        throw err;
+    }
+}
 
 // Solo Challenge checkout — $2.99
 app.post('/create-solo-checkout', async (req, res) => {
@@ -105,8 +190,8 @@ app.post('/credit-winner', async (req, res) => {
         const { email, amount, description } = req.body;
         const secret = req.headers['x-internal-secret'];
         if (secret !== process.env.INTERNAL_SECRET) return res.status(401).json({ error: 'Unauthorized' });
-        await db.addBalance(email, amount, description, null);
-        res.json({ success: true });
+        const result = await payoutWinner(email, amount, description || 'game_win');
+        res.json({ success: true, result });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

@@ -31,6 +31,11 @@ button{width:100%;padding:11px;border:none;border-radius:8px;font-size:14px;font
   <a href="/" class="back">← Back to Kurver</a>
 </div>
 <script>
+const params = new URLSearchParams(window.location.search);
+if(params.get('onboarded') === 'true'){
+    document.getElementById('msg').textContent = '✅ Payout account set up! Your winnings will be sent automatically.';
+    document.getElementById('msg').style.color = '#4CFF6C';
+}
 let userEmail = '';
 async function checkBalance(){
   userEmail = document.getElementById('email').value.trim();

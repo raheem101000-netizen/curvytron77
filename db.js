@@ -12,6 +12,7 @@ async function initDb() {
             updated_at TIMESTAMP DEFAULT NOW()
         )
     `;
+    await sql`ALTER TABLE balances ADD COLUMN IF NOT EXISTS stripe_connect_id TEXT`;
     await sql`
         CREATE TABLE IF NOT EXISTS transactions (
             id SERIAL PRIMARY KEY,
@@ -78,4 +79,16 @@ async function createWithdrawal(email, amount, transferId) {
     `;
 }
 
-module.exports = { initDb, getBalance, addBalance, deductBalance, getLatestPaymentIntent, createWithdrawal };
+async function getConnectAccount(email) {
+    const rows = await sql`SELECT stripe_connect_id FROM balances WHERE email = ${email}`;
+    return rows[0]?.stripe_connect_id;
+}
+
+async function saveConnectAccount(email, connectId) {
+    await sql`
+        UPDATE balances SET stripe_connect_id = ${connectId}, updated_at = NOW()
+        WHERE email = ${email}
+    `;
+}
+
+module.exports = { initDb, getBalance, addBalance, deductBalance, getLatestPaymentIntent, createWithdrawal, getConnectAccount, saveConnectAccount };
