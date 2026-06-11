@@ -3743,8 +3743,9 @@ RoomController.prototype.launch = function()
                 return;
             }
         } else {
+            var devMode = new URLSearchParams(window.location.search).get('dev') === 'MEDIATEST';
             var readyCount = players.filter(function(p){ return p.ready; }).length;
-            if (readyCount < 3) {
+            if (!devMode && readyCount < 3) {
                 alert('At least 3 players must be ready and paid before starting.');
                 return;
             }
