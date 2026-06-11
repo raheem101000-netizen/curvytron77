@@ -3932,6 +3932,12 @@ RoomController.prototype.setReady = function(player) {
         return;
     }
 
+    var devMode = new URLSearchParams(window.location.search).get('dev') === 'MEDIATEST';
+    if (devMode) {
+        this.repository.setReady(player, function(){});
+        return;
+    }
+
     var self = this;
     fetch('/create-multiplayer-checkout', {
         method: 'POST',

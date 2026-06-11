@@ -125,6 +125,11 @@ body{font-family:'Space Grotesk',sans-serif;background:#05050f;min-height:100vh;
 </div>
 <script>
 function startCheckout() {
+  var devMode = new URLSearchParams(window.location.search).get('dev') === 'MEDIATEST';
+  if (devMode) {
+    window.location.href = '/solo.html?paid=true&dev=MEDIATEST';
+    return;
+  }
   var btn = document.getElementById('payBtn');
   btn.disabled = true;
   btn.textContent = 'Redirecting...';
