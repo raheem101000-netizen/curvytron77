@@ -4518,6 +4518,16 @@ function Server(config)
 
     this.app.use(express['static']('web'));
 
+    var self = this;
+    this.app.get('/status', function(req, res) {
+        res.json({
+            game: 'Kurver',
+            activePlayers: self.clients.count(),
+            activeRooms: self.roomRepository.rooms.count(),
+            timestamp: new Date().toISOString()
+        });
+    });
+
     this.server.on('error', this.onError);
     this.server.on('upgrade', this.authorizationHandler);
     this.server.listen(config.port);
