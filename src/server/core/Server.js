@@ -22,6 +22,9 @@ function Server(config)
 
     var self = this;
     this.app.get('/status', function(req, res) {
+        // Public, read-only status check polled cross-origin from the
+        // admin dashboard — no sensitive data, so a wildcard is fine.
+        res.set('Access-Control-Allow-Origin', '*');
         res.json({
             game: 'Kurver',
             activePlayers: self.clients.count(),
