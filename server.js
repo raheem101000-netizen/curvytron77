@@ -1,5 +1,9 @@
 process.chdir(__dirname);
 require('dotenv').config();
+const { Pool } = require('pg');
+const neonPool = process.env.DATABASE_URL
+    ? new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } })
+    : null;
 var config;
 try { config = require('./config.json'); } catch(e) { config = { port: process.env.PORT || 8080, inspector: { enabled: false } }; }
 if (process.env.PORT) config.port = process.env.PORT;
@@ -25,6 +29,14 @@ app.post('/webhook', express.raw({ type: 'application/json' }), async (req, res)
         const paymentIntentId = session.payment_intent;
         if (email && paymentIntentId) {
             await db.addBalance(email, 0, 'entry_fee_paid', paymentIntentId);
+        }
+        if (neonPool) {
+            const mode = session.metadata?.mode || 'multiplayer';
+            const amount = mode === 'solo' ? 2.99 : 2.00;
+            await neonPool.query(
+                'INSERT INTO sessions (game, mode, amount, stripe_payment_id) VALUES ($1, $2, $3, $4)',
+                ['Kurver', mode, amount, session.payment_intent]
+            ).catch(console.error);
         }
     }
     res.json({ received: true });
@@ -141,6 +153,7 @@ app.post('/create-solo-checkout', async (req, res) => {
             mode: 'payment',
             success_url: `${process.env.BASE_URL}/solo-game?paid=true&session_id={CHECKOUT_SESSION_ID}`,
             cancel_url: `${process.env.BASE_URL}/solo`,
+            metadata: { mode: 'solo' },
         });
         res.json({ url: session.url });
     } catch (err) {
@@ -170,6 +183,7 @@ app.post('/create-multiplayer-checkout', async (req, res) => {
             mode: 'payment',
             success_url: `${process.env.BASE_URL}/multiplayer?paid=true&room=${roomName}&player=${playerName}&session_id={CHECKOUT_SESSION_ID}`,
             cancel_url: `${process.env.BASE_URL}/multiplayer`,
+            metadata: { mode: 'multiplayer' },
         });
         res.json({ url: session.url });
     } catch (err) {
