@@ -234,7 +234,7 @@ function _kurverSubmitClaim() {
   fetch('https://curvytron77.onrender.com/submit-prize-claim', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ winner_name: name, paypal_email: paypal, contact_email: contact, notes: notes, game: 'Kurver', prize_amount: '$8' })
+    body: JSON.stringify({ winner_name: name, paypal_email: paypal, contact_email: contact, notes: notes, game: 'Kurver Multiplayer', prize_amount: '$8' })
   }).then(function(r){ return r.json(); }).then(function(d){
     if (d.success) {
       document.getElementById('kp-success').style.display = 'block';

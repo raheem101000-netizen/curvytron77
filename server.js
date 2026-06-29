@@ -273,7 +273,7 @@ app.get('/admin/prize-claims', async (req, res) => {
     if (req.query.key !== 'TENTEN2025') { res.status(401).json({ error: 'Unauthorized' }); return; }
     if (!neonPool) { res.json([]); return; }
     try {
-        const result = await neonPool.query('SELECT * FROM prize_claims WHERE paid = false ORDER BY claimed_at DESC');
+        const result = await neonPool.query('SELECT * FROM prize_claims WHERE paid = false AND game = \'Kurver Multiplayer\' ORDER BY claimed_at DESC');
         res.json(result.rows);
     } catch(err) { res.status(500).json({ error: err.message }); }
 });

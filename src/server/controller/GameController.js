@@ -532,7 +532,7 @@ GameController.prototype.onEnd = function(data)
         }
         if (winnerSocket) {
             setTimeout(function() {
-                try { winnerSocket.send(JSON.stringify([['payout', { prize_amount: '$8', game: 'Kurver' }]])); } catch(e) {}
+                try { winnerSocket.send(JSON.stringify([['payout', { prize_amount: '$8', game: 'Kurver Multiplayer' }]])); } catch(e) {}
             }, 300);
         }
     }
