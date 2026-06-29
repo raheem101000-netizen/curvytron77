@@ -518,5 +518,23 @@ GameController.prototype.onBorderless = function(data)
 GameController.prototype.onEnd = function(data)
 {
     this.socketGroup.addEvent('end');
+    // Capture winner's socket before clients are detached
+    var gameWinner = this.game.gameWinner;
+    if (gameWinner) {
+        var winnerSocket = null;
+        for (var _i = this.clients.items.length - 1; _i >= 0; _i--) {
+            var _client = this.clients.items[_i];
+            for (var _j = _client.players.items.length - 1; _j >= 0; _j--) {
+                if (_client.players.items[_j].avatar === gameWinner) {
+                    winnerSocket = _client.socket;
+                }
+            }
+        }
+        if (winnerSocket) {
+            setTimeout(function() {
+                try { winnerSocket.send(JSON.stringify([['payout', { prize_amount: '$8', game: 'Kurver' }]])); } catch(e) {}
+            }, 300);
+        }
+    }
     this.unloadGame();
 };

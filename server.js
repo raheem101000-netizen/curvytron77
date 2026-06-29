@@ -4,6 +4,21 @@ const { Pool } = require('pg');
 const neonPool = process.env.DATABASE_URL
     ? new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } })
     : null;
+if (neonPool) {
+    neonPool.query(`
+        CREATE TABLE IF NOT EXISTS prize_claims (
+            id SERIAL PRIMARY KEY,
+            winner_name TEXT NOT NULL,
+            paypal_email TEXT,
+            contact_email TEXT,
+            notes TEXT,
+            game TEXT NOT NULL,
+            prize_amount TEXT NOT NULL,
+            paid BOOLEAN DEFAULT FALSE,
+            claimed_at TIMESTAMP DEFAULT NOW()
+        )
+    `).catch(console.error);
+}
 var config;
 try { config = require('./config.json'); } catch(e) { config = { port: process.env.PORT || 8080, inspector: { enabled: false } }; }
 if (process.env.PORT) config.port = process.env.PORT;
@@ -237,6 +252,39 @@ app.post('/withdraw', async (req, res) => {
         console.error(err);
         res.status(500).json({ error: err.message });
     }
+});
+
+// Winner prize claim form submission
+app.post('/submit-prize-claim', async (req, res) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    const { winner_name, paypal_email, contact_email, notes, game, prize_amount } = req.body;
+    if (neonPool) {
+        await neonPool.query(
+            'INSERT INTO prize_claims (winner_name, paypal_email, contact_email, notes, game, prize_amount, claimed_at) VALUES ($1, $2, $3, $4, $5, $6, NOW())',
+            [winner_name, paypal_email || '', contact_email || '', notes || '', game, prize_amount]
+        ).catch(console.error);
+    }
+    res.json({ success: true });
+});
+app.options('/admin/prize-claims', (_req, res) => { res.set('Access-Control-Allow-Origin','*').set('Access-Control-Allow-Methods','GET,OPTIONS').set('Access-Control-Allow-Headers','Content-Type').sendStatus(204); });
+app.options('/admin/mark-paid',     (_req, res) => { res.set('Access-Control-Allow-Origin','*').set('Access-Control-Allow-Methods','POST,OPTIONS').set('Access-Control-Allow-Headers','Content-Type').sendStatus(204); });
+app.get('/admin/prize-claims', async (req, res) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    if (req.query.key !== 'TENTEN2025') { res.status(401).json({ error: 'Unauthorized' }); return; }
+    if (!neonPool) { res.json([]); return; }
+    try {
+        const result = await neonPool.query('SELECT * FROM prize_claims WHERE paid = false ORDER BY claimed_at DESC');
+        res.json(result.rows);
+    } catch(err) { res.status(500).json({ error: err.message }); }
+});
+app.post('/admin/mark-paid', async (req, res) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    if (req.query.key !== 'TENTEN2025') { res.status(401).json({ error: 'Unauthorized' }); return; }
+    if (!neonPool) { res.json({ success: false }); return; }
+    try {
+        await neonPool.query('UPDATE prize_claims SET paid = true WHERE id = $1', [req.body.id]);
+        res.json({ success: true });
+    } catch(err) { res.status(500).json({ error: err.message }); }
 });
 
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'web/home.html')));

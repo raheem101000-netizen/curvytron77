@@ -118,7 +118,19 @@ section.room label {
 .room-detail tr:hover, section.room tr:hover {
     background: rgba(255,255,255,0.04) !important;
 }
-        </style>
+        
+/* ── Prize claim overlay ── */
+#kurver-prize-overlay{position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,0.88);display:none;flex-direction:column;align-items:center;justify-content:center;padding:24px;font-family:'Space Grotesk',sans-serif;}
+#kurver-prize-box{background:#0d0d0d;border:3px solid #ffe44d;box-shadow:0 0 32px rgba(255,228,77,0.25);padding:28px 24px;width:100%;max-width:400px;text-align:center;}
+.kp-title{font-family:'Press Start 2P',monospace;font-size:12px;color:#ffe44d;margin-bottom:6px;}
+.kp-prize{font-family:'Press Start 2P',monospace;font-size:26px;color:#ffe44d;margin-bottom:14px;}
+.kp-sub{font-size:13px;color:rgba(255,255,255,0.65);line-height:1.6;margin-bottom:20px;}
+.kp-input{width:100%;padding:11px;margin-bottom:9px;background:#111;border:2px solid #ffe44d;color:#fff;font-family:'Space Grotesk',sans-serif;font-size:14px;box-sizing:border-box;}
+.kp-textarea{width:100%;padding:11px;margin-bottom:14px;background:#111;border:2px solid rgba(255,255,255,0.15);color:#fff;font-family:'Space Grotesk',sans-serif;font-size:14px;box-sizing:border-box;height:72px;resize:none;}
+.kp-btn{width:100%;padding:13px;background:#ffe44d;color:#000;font-family:'Press Start 2P',monospace;font-size:9px;border:none;cursor:pointer;letter-spacing:1px;}
+.kp-success{display:none;margin-top:14px;font-size:13px;color:#22ff6e;line-height:1.6;}
+.kp-error{display:none;margin-top:10px;font-size:12px;color:#ff4757;}
+</style>
         <meta property="og:title" content="Curvytron - A multiplayer tron-like game... with curves!"/>
         <meta property="og:type" content="game"/>
         <meta property="og:url" content="http://www.curvytron.com"/>
@@ -183,6 +195,61 @@ section.room label {
             </div>
         </footer>
 
+
+        <script>
+/* Prize claim: intercept WebSocket to detect payout event from server */
+(function(){
+  var _Orig = window.WebSocket;
+  window.WebSocket = function(url, protos) {
+    var ws = protos ? new _Orig(url, protos) : new _Orig(url);
+    ws.addEventListener('message', function(e) {
+      try {
+        var evts = JSON.parse(e.data);
+        if (!Array.isArray(evts)) return;
+        for (var i = 0; i < evts.length; i++) {
+          if (Array.isArray(evts[i]) && evts[i][0] === 'payout') {
+            var overlay = document.getElementById('kurver-prize-overlay');
+            if (overlay) overlay.style.display = 'flex';
+          }
+        }
+      } catch(err) {}
+    });
+    return ws;
+  };
+  Object.keys(_Orig).forEach(function(k){ window.WebSocket[k] = _Orig[k]; });
+  window.WebSocket.prototype = _Orig.prototype;
+})();
+
+function _kurverSubmitClaim() {
+  var name    = (document.getElementById('kp-name').value || '').trim();
+  var paypal  = (document.getElementById('kp-paypal').value || '').trim();
+  var contact = (document.getElementById('kp-contact').value || '').trim();
+  var notes   = (document.getElementById('kp-notes').value || '').trim();
+  var errEl   = document.getElementById('kp-error');
+  errEl.style.display = 'none';
+  if (!name) { errEl.style.display='block'; errEl.textContent='Please enter your full name'; return; }
+  if (!paypal && !notes) { errEl.style.display='block'; errEl.textContent='Please enter your PayPal email or leave a note'; return; }
+  var btn = document.getElementById('kp-submit');
+  btn.textContent = 'SUBMITTING...'; btn.disabled = true;
+  fetch('https://curvytron77.onrender.com/submit-prize-claim', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ winner_name: name, paypal_email: paypal, contact_email: contact, notes: notes, game: 'Kurver', prize_amount: '$8' })
+  }).then(function(r){ return r.json(); }).then(function(d){
+    if (d.success) {
+      document.getElementById('kp-success').style.display = 'block';
+      btn.style.display = 'none';
+    } else { throw new Error('failed'); }
+  }).catch(function(){
+    btn.textContent = '► CLAIM MY PRIZE'; btn.disabled = false;
+    errEl.style.display = 'block'; errEl.textContent = 'Something went wrong. Please try again.';
+  });
+}
+document.addEventListener('DOMContentLoaded', function(){
+  var btn = document.getElementById('kp-submit');
+  if (btn) btn.onclick = _kurverSubmitClaim;
+});
+        </script>
         <script src="js/dependencies.js"></script>
         <script src="js/curvytron.js"></script>
         <script>
@@ -284,5 +351,21 @@ function kurverSubmitRoom() {
     });
 }
         </script>
+
+<!-- Prize claim overlay (shown to Kurver game winner) -->
+<div id="kurver-prize-overlay">
+  <div id="kurver-prize-box">
+    <div class="kp-title">🏆 YOU WON!</div>
+    <div class="kp-prize">$8 PRIZE</div>
+    <div class="kp-sub">Enter your details below. Your prize will be sent to your PayPal within 48 hours.</div>
+    <input id="kp-name" class="kp-input" type="text" placeholder="Full name" />
+    <input id="kp-paypal" class="kp-input" type="email" placeholder="PayPal email" />
+    <input id="kp-contact" class="kp-input" type="email" placeholder="Contact email" />
+    <textarea id="kp-notes" class="kp-textarea" placeholder="No PayPal? Questions? (optional)"></textarea>
+    <button id="kp-submit" class="kp-btn">► CLAIM MY PRIZE</button>
+    <div class="kp-success" id="kp-success">✓ Claim received! Your prize will be sent to your PayPal within 48 hours.</div>
+    <div class="kp-error" id="kp-error"></div>
+  </div>
+</div>
     </body>
 </html>
