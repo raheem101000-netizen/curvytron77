@@ -3730,7 +3730,7 @@ RoomController.prototype.launch = function()
         var urlParams = new URLSearchParams(window.location.search);
         var isCasual = urlParams.get('mode') === 'casual';
         var isPuz = window._launchPuzRoyale || urlParams.get('game') === 'puz';
-        var players = this.players ? this.players.items : [];
+        var players = this.room && this.room.players ? this.room.players.items : [];
 
         if (isCasual) {
             if (players.length < 2) {
