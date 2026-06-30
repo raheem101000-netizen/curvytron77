@@ -7474,11 +7474,19 @@ li.player-row img {
   background-position: 0 0, 100% 0;
   background-repeat: no-repeat;
 }
+#game-wrapper #col-right {
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
 #game-wrapper #col-right .game-render {
   display: block;
   position: relative;
   border: 4px solid rgb(110.5, 110.5, 110.5);
   margin: auto;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 #game-wrapper #col-right .game-render.borderless {
   border-style: dashed;

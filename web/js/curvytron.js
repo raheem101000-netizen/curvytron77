@@ -6652,6 +6652,7 @@ PlayerInput.prototype.attachEvents = function()
                 window.addEventListener('keyup', this.onKeyUp);
             } else if (type === 'touch') {
                 window.addEventListener('touchstart', this.onTouch, { passive: false });
+                window.addEventListener('touchmove', this.onTouch, { passive: false });
                 window.addEventListener('touchend', this.onTouch, { passive: false });
                 window.addEventListener('touchleave', this.onTouch, { passive: false });
                 window.addEventListener('touchcancel', this.onTouch, { passive: false });
@@ -6684,6 +6685,7 @@ PlayerInput.prototype.detachEvents = function()
                 window.removeEventListener('keyup', this.onKeyUp);
             } else if (type === 'touch') {
                 window.removeEventListener('touchstart', this.onTouch);
+                window.removeEventListener('touchmove', this.onTouch);
                 window.removeEventListener('touchend', this.onTouch);
                 window.removeEventListener('touchleave', this.onTouch);
                 window.removeEventListener('touchcancel', this.onTouch);
