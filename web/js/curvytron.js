@@ -6783,7 +6783,10 @@ PlayerInput.prototype.onButton = function(e)
  */
 PlayerInput.prototype.onTouch = function(e)
 {
-    e.preventDefault();
+    var wrapper = document.getElementById('game-wrapper');
+    if (wrapper && wrapper.contains(e.target)) {
+        e.preventDefault();
+    }
 
     var center = this.width/2,
         tests = [],
