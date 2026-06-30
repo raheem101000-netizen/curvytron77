@@ -6651,10 +6651,10 @@ PlayerInput.prototype.attachEvents = function()
                 window.addEventListener('keydown', this.onKeyDown);
                 window.addEventListener('keyup', this.onKeyUp);
             } else if (type === 'touch') {
-                window.addEventListener('touchstart', this.onTouch);
-                window.addEventListener('touchend', this.onTouch);
-                window.addEventListener('touchleave', this.onTouch);
-                window.addEventListener('touchcancel', this.onTouch);
+                window.addEventListener('touchstart', this.onTouch, { passive: false });
+                window.addEventListener('touchend', this.onTouch, { passive: false });
+                window.addEventListener('touchleave', this.onTouch, { passive: false });
+                window.addEventListener('touchcancel', this.onTouch, { passive: false });
             } else if (new RegExp('^gamepad:\\d+:button').test(type)) {
                 gamepadListener.on(type, this.onButton);
             } else {
