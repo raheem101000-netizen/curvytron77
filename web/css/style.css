@@ -6950,6 +6950,9 @@ li.player-row img {
 }
 .room #room-parameters .bonus-selection {
   margin-bottom: 15px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 .room #room-parameters .bonus-selection .preset {
   cursor: pointer;
@@ -6984,16 +6987,25 @@ li.player-row img {
   width: 46px;
   height: 46px;
   display: inline-block;
-  background: url(../images/bonus.png) no-repeat transparent;
+  background: url(../images/bonus.png) no-repeat rgba(255,255,255,0.04);
   background-size: 138px 184px;
   position: relative;
   text-align: center;
-  color: #FFF;
+  color: rgba(255,255,255,0.85);
   cursor: pointer;
-  margin: 0 4px;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 8px;
+  transition: border-color 0.15s, opacity 0.15s;
+}
+.room #room-parameters .bonus-selection .bonus:hover {
+  border-color: rgba(255,255,255,0.3);
 }
 .room #room-parameters .bonus-selection .bonus.disabled {
   cursor: not-allowed;
+  opacity: 0.5;
+}
+.room #room-parameters .bonus-selection .bonus.disabled:hover {
+  border-color: rgba(255,255,255,0.1);
 }
 .room #room-parameters .bonus-selection .bonus.bonus-self-fast {
   background-position: 0px 0px;
@@ -7147,6 +7159,20 @@ li.player-row img {
 .room #room-parameters .bonus-legend .legend-icon.bonus-self-small { background-position: 0 -96px; }
 .room #room-parameters .bonus-legend .legend-icon.bonus-all-clear { background-position: -32px -96px; }
 .room #room-parameters .bonus-legend .legend-icon.bonus-enemy-straight-angle { background-position: -64px -96px; }
+
+/* Include/Exclude bonus toggles — same toggleBonus() wiring as before,
+   just restyled to match the legend and the rest of the dark panel. */
+.room #room-parameters .bonus-toggles {
+  margin-bottom: 4px;
+}
+.room #room-parameters .bonus-toggles label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.45);
+  margin-bottom: 8px;
+}
 
 #game-wrapper {
   position: fixed;

@@ -54,6 +54,20 @@
             </div>
         </div>
 
+        <div class="bonus-toggles">
+            <p class="bonus-legend-sub" ng-if="master">Click a bonus to include or exclude it from this room.</p>
+
+            <label>Include:</label>
+            <div class="bonus-selection selected">
+                <span ng-repeat="(bonus, enabled) in config.bonuses track by $index" ng-click="toggleBonus(bonus)" class="bonus {{ ::config.bonusClasses[bonus] }}" ng-if="enabled" ng-class="{'disabled': !master}"></span>
+            </div>
+
+            <label>Exclude:</label>
+            <div class="bonus-selection available">
+                <span ng-repeat="(bonus, enabled) in config.bonuses track by $index" ng-click="toggleBonus(bonus)" class="bonus {{ ::config.bonusClasses[bonus] }}" ng-if="!enabled" ng-class="{'disabled': !master}"></span>
+            </div>
+        </div>
+
         <div class="bonus-config" style="display:none">
             <div class="config-variables" ng-repeat="(variable, value) in ::config.variables track by variable">
                 <label for="config-{{ ::variable }}">{{ config.variablesNames[variable] }}:</label>
@@ -72,16 +86,6 @@
                 <span ng-if="config.preset == config.customPreset" ng-click="togglePreset(config.customPreset)" class="preset active" ng-class="{'disabled': !master}">
                     {{ ::config.customPreset.name }}
                 </span>
-            </div>
-
-            <label>Include:</label>
-            <div class="bonus-selection selected">
-                <span ng-repeat="(bonus, enabled) in config.bonuses track by $index" ng-click="toggleBonus(bonus)" class="bonus {{ ::config.bonusClasses[bonus] }}" ng-if="enabled" ng-class="{'disabled': !master}"></span>
-            </div>
-
-            <label>Exclude:</label>
-            <div class="bonus-selection available">
-                <span ng-repeat="(bonus, enabled) in config.bonuses track by $index" ng-click="toggleBonus(bonus)" class="bonus {{ ::config.bonusClasses[bonus] }}" ng-if="!enabled" ng-class="{'disabled': !master}"></span>
             </div>
         </div>
     </div>
