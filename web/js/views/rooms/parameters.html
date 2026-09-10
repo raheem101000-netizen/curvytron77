@@ -17,36 +17,72 @@
             </div>
         </div>
     </div>
-    <div class="col-lg-8 bonus-list" style="display:none">
+    <div class="col-lg-8 bonus-list">
         <h2>Bonus</h2>
 
-        <div class="config-variables" ng-repeat="(variable, value) in ::config.variables track by variable">
-            <label for="config-{{ ::variable }}">{{ config.variablesNames[variable] }}:</label>
-            <div class="input-range">
-                <span class="range-icon less-icon"><i class="icon-minus"></i></span>
-                <span class="range-icon more-icon"><i class="icon-plus"></i></span>
-                <input id="config-{{ ::variable }}" type="range" min="-1" max="1" step="0.1" ng-model="config.variables[variable]" ng-change="setVariable(variable)" ng-disabled="!master"/>
+        <div class="bonus-legend">
+            <p class="bonus-legend-sub">Grab these on the map during play — each has a timed effect.</p>
+
+            <div class="legend-cat self">
+                <div class="legend-cat-head">Green &mdash; helps you</div>
+                <div class="legend-grid">
+                    <div class="legend-item"><span class="legend-icon bonus-self-fast"></span><span class="legend-txt"><b>Speed Up</b><span>you move faster</span></span></div>
+                    <div class="legend-item"><span class="legend-icon bonus-self-slow"></span><span class="legend-txt"><b>Slow Down</b><span>easier tight turns</span></span></div>
+                    <div class="legend-item"><span class="legend-icon bonus-self-master"></span><span class="legend-txt"><b>Master</b><span>invincible, no trail</span></span></div>
+                    <div class="legend-item"><span class="legend-icon bonus-self-small"></span><span class="legend-txt"><b>Small</b><span>line shrinks</span></span></div>
+                </div>
+            </div>
+
+            <div class="legend-cat enemy">
+                <div class="legend-cat-head">Red &mdash; hits your opponents</div>
+                <div class="legend-grid">
+                    <div class="legend-item"><span class="legend-icon bonus-enemy-fast"></span><span class="legend-txt"><b>Enemy Speed Up</b><span>harder to control</span></span></div>
+                    <div class="legend-item"><span class="legend-icon bonus-enemy-slow"></span><span class="legend-txt"><b>Enemy Slow</b><span>opponents slow down</span></span></div>
+                    <div class="legend-item"><span class="legend-icon bonus-enemy-big"></span><span class="legend-txt"><b>Enemy Big</b><span>easier for them to crash</span></span></div>
+                    <div class="legend-item"><span class="legend-icon bonus-enemy-inverse"></span><span class="legend-txt"><b>Reverse Controls</b><span>steering is flipped</span></span></div>
+                    <div class="legend-item"><span class="legend-icon bonus-enemy-straight-angle"></span><span class="legend-txt"><b>Sharp Turns</b><span>only 90&deg; turns</span></span></div>
+                </div>
+            </div>
+
+            <div class="legend-cat game">
+                <div class="legend-cat-head">Grey &mdash; affects everyone</div>
+                <div class="legend-grid">
+                    <div class="legend-item"><span class="legend-icon bonus-game-borderless"></span><span class="legend-txt"><b>Borderless</b><span>wrap around the edges</span></span></div>
+                    <div class="legend-item"><span class="legend-icon bonus-all-clear"></span><span class="legend-txt"><b>Clear</b><span>wipes all trails</span></span></div>
+                    <div class="legend-item"><span class="legend-icon bonus-all-color"></span><span class="legend-txt"><b>Color Swap</b><span>colors change</span></span></div>
+                </div>
             </div>
         </div>
 
-        <label>Preset:</label>
-        <div class="bonus-selection">
-            <span ng-repeat="preset in ::config.presets track by $index" ng-click="togglePreset(preset)" class="preset" ng-class="{ 'active': preset == config.preset, 'disabled': !master }">
-                {{ ::preset.name }}
-            </span>
-            <span ng-if="config.preset == config.customPreset" ng-click="togglePreset(config.customPreset)" class="preset active" ng-class="{'disabled': !master}">
-                {{ ::config.customPreset.name }}
-            </span>
-        </div>
+        <div class="bonus-config" style="display:none">
+            <div class="config-variables" ng-repeat="(variable, value) in ::config.variables track by variable">
+                <label for="config-{{ ::variable }}">{{ config.variablesNames[variable] }}:</label>
+                <div class="input-range">
+                    <span class="range-icon less-icon"><i class="icon-minus"></i></span>
+                    <span class="range-icon more-icon"><i class="icon-plus"></i></span>
+                    <input id="config-{{ ::variable }}" type="range" min="-1" max="1" step="0.1" ng-model="config.variables[variable]" ng-change="setVariable(variable)" ng-disabled="!master"/>
+                </div>
+            </div>
 
-        <label>Include:</label>
-        <div class="bonus-selection selected">
-            <span ng-repeat="(bonus, enabled) in config.bonuses track by $index" ng-click="toggleBonus(bonus)" class="bonus {{ ::config.bonusClasses[bonus] }}" ng-if="enabled" ng-class="{'disabled': !master}"></span>
-        </div>
+            <label>Preset:</label>
+            <div class="bonus-selection">
+                <span ng-repeat="preset in ::config.presets track by $index" ng-click="togglePreset(preset)" class="preset" ng-class="{ 'active': preset == config.preset, 'disabled': !master }">
+                    {{ ::preset.name }}
+                </span>
+                <span ng-if="config.preset == config.customPreset" ng-click="togglePreset(config.customPreset)" class="preset active" ng-class="{'disabled': !master}">
+                    {{ ::config.customPreset.name }}
+                </span>
+            </div>
 
-        <label>Exclude:</label>
-        <div class="bonus-selection available">
-            <span ng-repeat="(bonus, enabled) in config.bonuses track by $index" ng-click="toggleBonus(bonus)" class="bonus {{ ::config.bonusClasses[bonus] }}" ng-if="!enabled" ng-class="{'disabled': !master}"></span>
+            <label>Include:</label>
+            <div class="bonus-selection selected">
+                <span ng-repeat="(bonus, enabled) in config.bonuses track by $index" ng-click="toggleBonus(bonus)" class="bonus {{ ::config.bonusClasses[bonus] }}" ng-if="enabled" ng-class="{'disabled': !master}"></span>
+            </div>
+
+            <label>Exclude:</label>
+            <div class="bonus-selection available">
+                <span ng-repeat="(bonus, enabled) in config.bonuses track by $index" ng-click="toggleBonus(bonus)" class="bonus {{ ::config.bonusClasses[bonus] }}" ng-if="!enabled" ng-class="{'disabled': !master}"></span>
+            </div>
         </div>
     </div>
 </div>
