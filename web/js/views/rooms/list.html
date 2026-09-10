@@ -19,15 +19,20 @@
     </div>
 
     <div class="container" style="margin-bottom:0;padding-bottom:0;">
-        <div id='prize-info' style='padding:16px 0;font-family:monospace;font-size:11px;color:#fff;'>
-          <div style='color:#00f5d4;font-weight:700;letter-spacing:1px;margin-bottom:8px;'>💰 PRIZE POOL</div>
-          <div style='display:grid;grid-template-columns:1fr 1fr;gap:4px;'>
-            <span style='color:rgba(255,255,255,0.5)'>3 players</span><span style='color:#00f5d4'>→ Win $5</span>
-            <span style='color:rgba(255,255,255,0.5)'>4 players</span><span style='color:#00f5d4'>→ Win $7</span>
-            <span style='color:rgba(255,255,255,0.5)'>5 players</span><span style='color:#00f5d4'>→ Win $9</span>
-            <span style='color:rgba(255,255,255,0.5)'>6+ players</span><span style='color:#00f5d4'>→ Win $10</span>
+        <div class="kurver-prize-bar">
+          <div class="kpb-entry">
+            <div class="kpb-entry-n">$2</div>
+            <div class="kpb-entry-l">Entry</div>
           </div>
-          <div style='margin-top:8px;font-size:10px;color:rgba(255,255,255,0.35)'>Entry: $2 · More players = bigger prize</div>
+          <div class="kpb-scale">
+            <div class="kpb-scale-t">More players, bigger prize</div>
+            <div class="kpb-tiers">
+              <div class="kpb-tier">3p <b>$5</b></div>
+              <div class="kpb-tier">4p <b>$7</b></div>
+              <div class="kpb-tier">5p <b>$9</b></div>
+              <div class="kpb-tier">6+ <b>$10</b></div>
+            </div>
+          </div>
         </div>
     </div>
 
@@ -83,3 +88,15 @@
         </table>
     </div>
 </section>
+
+<style>
+.kurver-prize-bar{display:flex;align-items:center;gap:20px;background:linear-gradient(135deg,rgba(180,80,255,0.12),rgba(80,200,255,0.06));border:1px solid rgba(180,80,255,0.25);border-radius:14px;padding:16px 22px;flex-wrap:wrap;margin:10px 0;font-family:'Space Grotesk',sans-serif;}
+.kpb-entry{text-align:center;padding-right:20px;border-right:1px solid rgba(255,255,255,0.12);}
+.kpb-entry-n{font-size:28px;font-weight:700;color:#fff;line-height:1;}
+.kpb-entry-l{font-size:10px;color:rgba(255,255,255,0.4);letter-spacing:1px;text-transform:uppercase;margin-top:5px;}
+.kpb-scale{flex:1;min-width:220px;}
+.kpb-scale-t{font-size:11px;color:rgba(255,255,255,0.4);margin-bottom:9px;text-transform:uppercase;letter-spacing:1px;}
+.kpb-tiers{display:flex;gap:8px;flex-wrap:wrap;}
+.kpb-tier{background:rgba(255,255,255,0.05);border:1px solid rgba(180,80,255,0.2);border-radius:8px;padding:6px 12px;font-size:12px;color:rgba(255,255,255,0.7);}
+.kpb-tier b{color:#b450ff;}
+</style>
