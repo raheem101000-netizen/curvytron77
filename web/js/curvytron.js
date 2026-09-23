@@ -3549,6 +3549,7 @@ function RoomController($scope, $routeParams, $location, client, repository, pro
     this.setTouch         = this.setTouch.bind(this);
     this.updateProfile    = this.updateProfile.bind(this);
     this.toggleParameters = this.toggleParameters.bind(this);
+    this.prizeLabel       = this.prizeLabel.bind(this);
     this.onRoomMaster     = this.onRoomMaster.bind(this);
     this.onConfigOpen     = this.onConfigOpen.bind(this);
     this.onLaunchStart    = this.onLaunchStart.bind(this);
@@ -3569,6 +3570,7 @@ function RoomController($scope, $routeParams, $location, client, repository, pro
     this.$scope.setName           = this.setName;
     this.$scope.setTouch          = this.setTouch;
     this.$scope.toggleParameters  = this.toggleParameters;
+    this.$scope.prizeLabel        = this.prizeLabel;
     this.$scope.nameMaxLength     = Player.prototype.maxLength;
     this.$scope.colorMaxLength    = Player.prototype.colorMaxLength;
     this.$scope.hasTouch          = this.hasTouch;
@@ -4148,6 +4150,26 @@ RoomController.prototype.clearLaunchInterval = function()
 RoomController.prototype.toggleParameters = function()
 {
     this.$scope.displayParameters = !this.$scope.displayParameters;
+};
+
+/**
+ * Display-only live prize label for the current player count.
+ * Formula: $2 x (playerCount - 1), except 3 players shows $5 not $4.
+ * Below 3 players there is no prize to show yet.
+ *
+ * @return {String}
+ */
+RoomController.prototype.prizeLabel = function()
+{
+    var count = this.room ? this.room.players.items.length : 0;
+
+    if (count < 3) {
+        return 'Waiting for players\u2026 (min 3)';
+    }
+
+    var prize = count === 3 ? 5 : 2 * (count - 1);
+
+    return count + ' players \u2014 Prize: $' + prize;
 };
 /**
  * Rooms Controller
