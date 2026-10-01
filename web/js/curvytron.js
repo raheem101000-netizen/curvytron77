@@ -3729,29 +3729,6 @@ RoomController.prototype.goHome = function()
 RoomController.prototype.launch = function()
 {
     if (this.repository.amIMaster()) {
-        var urlParams = new URLSearchParams(window.location.search);
-        var isCasual = urlParams.get('mode') === 'casual';
-        var isPuz = window._launchPuzRoyale || urlParams.get('game') === 'puz';
-        var players = this.room && this.room.players ? this.room.players.items : [];
-
-        if (isCasual) {
-            if (players.length < 2) {
-                alert('Need at least 2 players to start.');
-                return;
-            }
-        } else if (isPuz) {
-            if (players.length < 2) {
-                alert('Need at least 2 players to start Puz Royale.');
-                return;
-            }
-        } else {
-            var devMode = new URLSearchParams(window.location.search).get('dev') === 'MEDIATEST';
-            var readyCount = players.filter(function(p){ return p.ready; }).length;
-            if (!devMode && readyCount < 3) {
-                alert('At least 3 players must be ready and paid before starting.');
-                return;
-            }
-        }
         this.repository.launch();
     }
 };
@@ -3924,35 +3901,18 @@ RoomController.prototype.setName = function(player)
  *
  * @return {Array}
  */
-RoomController.prototype.setReady = function(player) {
-    if (player.ready) return;
-    if (!player.local) return;
+RoomController.prototype.setReady = function(player)
+{
+    if (!player.local) { return; }
 
-    // Skip payment for casual mode
-    var urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get('mode') === 'casual') {
-        this.repository.setReady(player, function(){});
-        return;
-    }
-
-    var devMode = new URLSearchParams(window.location.search).get('dev') === 'MEDIATEST';
-    if (devMode) {
-        this.repository.setReady(player, function(){});
-        return;
-    }
-
-    var self = this;
-    fetch('/create-multiplayer-checkout', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-            roomName: self.room ? self.room.name : '',
-            playerName: player.name || ''
-        })
-    })
-    .then(function(res) { return res.json(); })
-    .then(function(data) { if (data.url) window.location.href = data.url; })
-    .catch(function(err) { console.error('Payment error:', err); });
+    this.repository.setReady(
+        player.id,
+        function (result) {
+            if (!result.success) {
+                console.error('Could not set player %s ready', player.name);
+            }
+        }
+    );
 };
 
 /**
