@@ -518,23 +518,43 @@ GameController.prototype.onBorderless = function(data)
 GameController.prototype.onEnd = function(data)
 {
     this.socketGroup.addEvent('end');
-    // Capture winner's socket before clients are detached
-    var gameWinner = this.game.gameWinner;
+
+    // Auto-credit replaces the old "$8 — claim by PayPal" flow: the winner's
+    // tenten.run account is credited the prize frozen at game start, once.
+    var game = this.game,
+        gameWinner = game.gameWinner;
+
     if (gameWinner) {
-        var winnerSocket = null;
+        var winnerSocket = null,
+            winnerUserId = null;
+
         for (var _i = this.clients.items.length - 1; _i >= 0; _i--) {
             var _client = this.clients.items[_i];
             for (var _j = _client.players.items.length - 1; _j >= 0; _j--) {
                 if (_client.players.items[_j].avatar === gameWinner) {
                     winnerSocket = _client.socket;
+                    winnerUserId = _client.userId;
                 }
             }
         }
-        if (winnerSocket) {
-            setTimeout(function() {
-                try { winnerSocket.send(JSON.stringify([['payout', { prize_amount: '$8', game: 'Kurver Multiplayer' }]])); } catch(e) {}
-            }, 300);
+
+        var tell = function (state) {
+            if (!winnerSocket) { return; }
+            try { winnerSocket.send(JSON.stringify([['kurver:credit', state]])); } catch (e) {}
+        };
+
+        if (winnerUserId && game.prizeDollars > 0) {
+            KurverMoney.creditWinWithRetry({
+                gameKey: game.gameKey,
+                winnerUserId: winnerUserId,
+                loserUserIds: game.startedUserIds.filter(function (id) { return id !== winnerUserId; }),
+                amount: game.prizeDollars,
+                startedPlayers: game.startedUserIds.length
+            }).then(tell);
+        } else if (winnerUserId) {
+            setTimeout(function () { tell({ status: 'none' }); }, 300);
         }
     }
+
     this.unloadGame();
 };

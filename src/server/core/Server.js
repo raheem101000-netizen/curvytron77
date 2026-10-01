@@ -56,10 +56,22 @@ Server.prototype.authorizationHandler = function(request, socket, head)
         return socket.end();
     }
 
-    var websocket = new WebSocket(request, socket, head, ['websocket'], {ping: 30}),
-        ip = request.headers['x-real-ip'] || request.connection.remoteAddress;
+    // Every multiplayer socket must carry a valid tenten.run login handoff
+    // (?token=…&player_id=… on the upgrade URL). Checked BEFORE the socket is
+    // accepted; anything else is refused with a 401 and never connects.
+    var server = this;
 
-    return this.onSocketConnection(websocket, ip);
+    KurverMoney.authenticateUpgrade(request.url).then(function (auth) {
+        var websocket = new WebSocket(request, socket, head, ['websocket'], {ping: 30}),
+            ip = request.headers['x-real-ip'] || request.connection.remoteAddress;
+
+        server.onSocketConnection(websocket, ip, auth);
+    }).catch(function (error) {
+        var message = error instanceof KurverMoney.AuthError ? error.message : 'Login check failed';
+        if (!(error instanceof KurverMoney.AuthError)) { console.error('[kurver-auth]', error); }
+        try { socket.write('HTTP/1.1 401 Unauthorized\r\nContent-Type: text/plain\r\nConnection: close\r\n\r\n' + message); } catch (e) {}
+        socket.destroy();
+    });
 };
 
 /**
@@ -68,9 +80,11 @@ Server.prototype.authorizationHandler = function(request, socket, head)
  * @param {Socket} socket
  * @param {String} ip
  */
-Server.prototype.onSocketConnection = function(socket, ip)
+Server.prototype.onSocketConnection = function(socket, ip, auth)
 {
     var client = new SocketClient(socket, 1, ip);
+    client.userId      = auth ? auth.userId : null;      // real tenten.run account
+    client.displayName = auth ? auth.displayName : null;
     this.clients.add(client);
 
     client.on('close', this.onSocketDisconnection);

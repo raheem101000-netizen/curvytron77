@@ -394,8 +394,26 @@ RoomController.prototype.onActivity = function(client)
  */
 RoomController.prototype.onPlayerAdd = function(client, data, callback)
 {
-    var name = data.name.substr(0, Player.prototype.maxLength).trim(),
+    // Identity comes from the tenten.run login (set on the socket at connect),
+    // never from the client: one player per account, named after the account.
+    if (!client.userId) {
+        return callback({success: false, error: 'Log in on tenten.run to play.'});
+    }
+
+    if (client.players.count() > 0) {
+        return callback({success: false, error: 'One player per account.'});
+    }
+
+    if (this.room.players.match(function () { return this.client.userId === client.userId; })) {
+        return callback({success: false, error: 'Your account is already in this room.'});
+    }
+
+    var name = String(client.displayName || 'Player').substr(0, Player.prototype.maxLength).trim(),
         color = typeof(data.color) !== 'undefined' ? data.color : null;
+
+    if (name.length && !this.room.isNameAvailable(name)) {
+        name = (name.substr(0, Player.prototype.maxLength - 7) + ' #' + client.userId).substr(0, Player.prototype.maxLength);
+    }
 
     if (!name.length) {
         return callback({success: false, error: 'Invalid name.'});
@@ -502,6 +520,10 @@ RoomController.prototype.onName = function(client, data, callback)
 
     if (!player) {
         return callback({success: false, error: 'Unknown player: "' + name + '"'});
+    }
+
+    if (client.userId) {
+        return callback({success: false, error: 'Your name is your tenten.run account name.', name: player.name});
     }
 
     if (!name.length) {

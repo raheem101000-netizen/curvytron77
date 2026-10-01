@@ -17,7 +17,13 @@ function SocketClient()
         protocol = 'wss://';
     }
 
-    BaseSocketClient.call(this, new Socket(protocol + document.location.host + document.location.pathname, ['websocket']));
+    // tenten.run login handoff (stored by the page from #token=…&player_id=…);
+    // the server refuses any socket without a valid one.
+    var auth = null;
+    try { auth = JSON.parse(window.sessionStorage.getItem('kurver_auth')); } catch (e) {}
+    var query = auth && auth.token ? '?token=' + encodeURIComponent(auth.token) + '&player_id=' + encodeURIComponent(auth.playerId) : '';
+
+    BaseSocketClient.call(this, new Socket(protocol + document.location.host + document.location.pathname + query, ['websocket']));
 
     this.socket.addEventListener('open', this.onOpen);
     this.socket.addEventListener('error', this.onError);

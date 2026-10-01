@@ -23,6 +23,9 @@ try {
 } catch (error) {
     influx = false;
 }
+
+// tenten.run login, prize and win credit (shared mediaskills database)
+var KurverMoney = require('../kurver-money.js');
 /**
  * Collection
  *
@@ -3015,6 +3018,44 @@ GameController.prototype.onBorderless = function(data)
 GameController.prototype.onEnd = function(data)
 {
     this.socketGroup.addEvent('end');
+
+    // Auto-credit replaces the old "$8 — claim by PayPal" flow: the winner's
+    // tenten.run account is credited the prize frozen at game start, once.
+    var game = this.game,
+        gameWinner = game.gameWinner;
+
+    if (gameWinner) {
+        var winnerSocket = null,
+            winnerUserId = null;
+
+        for (var _i = this.clients.items.length - 1; _i >= 0; _i--) {
+            var _client = this.clients.items[_i];
+            for (var _j = _client.players.items.length - 1; _j >= 0; _j--) {
+                if (_client.players.items[_j].avatar === gameWinner) {
+                    winnerSocket = _client.socket;
+                    winnerUserId = _client.userId;
+                }
+            }
+        }
+
+        var tell = function (state) {
+            if (!winnerSocket) { return; }
+            try { winnerSocket.send(JSON.stringify([['kurver:credit', state]])); } catch (e) {}
+        };
+
+        if (winnerUserId && game.prizeDollars > 0) {
+            KurverMoney.creditWinWithRetry({
+                gameKey: game.gameKey,
+                winnerUserId: winnerUserId,
+                loserUserIds: game.startedUserIds.filter(function (id) { return id !== winnerUserId; }),
+                amount: game.prizeDollars,
+                startedPlayers: game.startedUserIds.length
+            }).then(tell);
+        } else if (winnerUserId) {
+            setTimeout(function () { tell({ status: 'none' }); }, 300);
+        }
+    }
+
     this.unloadGame();
 };
 /**
@@ -3413,8 +3454,26 @@ RoomController.prototype.onActivity = function(client)
  */
 RoomController.prototype.onPlayerAdd = function(client, data, callback)
 {
-    var name = data.name.substr(0, Player.prototype.maxLength).trim(),
+    // Identity comes from the tenten.run login (set on the socket at connect),
+    // never from the client: one player per account, named after the account.
+    if (!client.userId) {
+        return callback({success: false, error: 'Log in on tenten.run to play.'});
+    }
+
+    if (client.players.count() > 0) {
+        return callback({success: false, error: 'One player per account.'});
+    }
+
+    if (this.room.players.match(function () { return this.client.userId === client.userId; })) {
+        return callback({success: false, error: 'Your account is already in this room.'});
+    }
+
+    var name = String(client.displayName || 'Player').substr(0, Player.prototype.maxLength).trim(),
         color = typeof(data.color) !== 'undefined' ? data.color : null;
+
+    if (name.length && !this.room.isNameAvailable(name)) {
+        name = (name.substr(0, Player.prototype.maxLength - 7) + ' #' + client.userId).substr(0, Player.prototype.maxLength);
+    }
 
     if (!name.length) {
         return callback({success: false, error: 'Invalid name.'});
@@ -3521,6 +3580,10 @@ RoomController.prototype.onName = function(client, data, callback)
 
     if (!player) {
         return callback({success: false, error: 'Unknown player: "' + name + '"'});
+    }
+
+    if (client.userId) {
+        return callback({success: false, error: 'Your name is your tenten.run account name.', name: player.name});
     }
 
     if (!name.length) {
@@ -4554,10 +4617,22 @@ Server.prototype.authorizationHandler = function(request, socket, head)
         return socket.end();
     }
 
-    var websocket = new WebSocket(request, socket, head, ['websocket'], {ping: 30}),
-        ip = request.headers['x-real-ip'] || request.connection.remoteAddress;
+    // Every multiplayer socket must carry a valid tenten.run login handoff
+    // (?token=…&player_id=… on the upgrade URL). Checked BEFORE the socket is
+    // accepted; anything else is refused with a 401 and never connects.
+    var server = this;
 
-    return this.onSocketConnection(websocket, ip);
+    KurverMoney.authenticateUpgrade(request.url).then(function (auth) {
+        var websocket = new WebSocket(request, socket, head, ['websocket'], {ping: 30}),
+            ip = request.headers['x-real-ip'] || request.connection.remoteAddress;
+
+        server.onSocketConnection(websocket, ip, auth);
+    }).catch(function (error) {
+        var message = error instanceof KurverMoney.AuthError ? error.message : 'Login check failed';
+        if (!(error instanceof KurverMoney.AuthError)) { console.error('[kurver-auth]', error); }
+        try { socket.write('HTTP/1.1 401 Unauthorized\r\nContent-Type: text/plain\r\nConnection: close\r\n\r\n' + message); } catch (e) {}
+        socket.destroy();
+    });
 };
 
 /**
@@ -4566,9 +4641,11 @@ Server.prototype.authorizationHandler = function(request, socket, head)
  * @param {Socket} socket
  * @param {String} ip
  */
-Server.prototype.onSocketConnection = function(socket, ip)
+Server.prototype.onSocketConnection = function(socket, ip, auth)
 {
     var client = new SocketClient(socket, 1, ip);
+    client.userId      = auth ? auth.userId : null;      // real tenten.run account
+    client.displayName = auth ? auth.displayName : null;
     this.clients.add(client);
 
     client.on('close', this.onSocketDisconnection);
@@ -6713,6 +6790,17 @@ function Game(room)
     this.bonusStack   = new GameBonusStack(this);
     this.roundWinner  = null;
     this.gameWinner   = null;
+
+    // Money, frozen when the game starts: the real accounts playing and the
+    // prize they're playing for (kurver-money.js prize()). Later joins/leaves
+    // never change it.
+    this.gameKey        = KurverMoney.newGameKey();
+    this.startedUserIds = [];
+    for (var p = 0; p < room.players.items.length; p++) {
+        var uid = room.players.items[p].client.userId;
+        if (uid && this.startedUserIds.indexOf(uid) === -1) { this.startedUserIds.push(uid); }
+    }
+    this.prizeDollars   = KurverMoney.prize(this.startedUserIds.length);
     this.deathInFrame = false;
 
     this.onPoint = this.onPoint.bind(this);
@@ -6982,6 +7070,9 @@ Game.prototype.onStop = function()
     if (won) {
         if (won instanceof Avatar) {
             this.gameWinner = won;
+        } else if (this.avatars.count() > 1 && this.getPresentAvatars().count() === 1) {
+            // Everyone else left: the last player still here wins (as in FIFA / Puz Royale).
+            this.gameWinner = this.getPresentAvatars().getFirst();
         }
         this.end();
     } else {

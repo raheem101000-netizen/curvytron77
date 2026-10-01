@@ -13,6 +13,17 @@ function Game(room)
     this.bonusStack   = new GameBonusStack(this);
     this.roundWinner  = null;
     this.gameWinner   = null;
+
+    // Money, frozen when the game starts: the real accounts playing and the
+    // prize they're playing for (kurver-money.js prize()). Later joins/leaves
+    // never change it.
+    this.gameKey        = KurverMoney.newGameKey();
+    this.startedUserIds = [];
+    for (var p = 0; p < room.players.items.length; p++) {
+        var uid = room.players.items[p].client.userId;
+        if (uid && this.startedUserIds.indexOf(uid) === -1) { this.startedUserIds.push(uid); }
+    }
+    this.prizeDollars   = KurverMoney.prize(this.startedUserIds.length);
     this.deathInFrame = false;
 
     this.onPoint = this.onPoint.bind(this);
@@ -282,6 +293,9 @@ Game.prototype.onStop = function()
     if (won) {
         if (won instanceof Avatar) {
             this.gameWinner = won;
+        } else if (this.avatars.count() > 1 && this.getPresentAvatars().count() === 1) {
+            // Everyone else left: the last player still here wins (as in FIFA / Puz Royale).
+            this.gameWinner = this.getPresentAvatars().getFirst();
         }
         this.end();
     } else {

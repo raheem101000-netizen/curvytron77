@@ -587,8 +587,7 @@ RoomController.prototype.toggleParameters = function()
 
 /**
  * Display-only live prize label for the current player count.
- * Formula: $2 x (playerCount - 1), except 3 players shows $5 not $4.
- * Below 3 players there is no prize to show yet.
+ * Same formula the server pays with (kurver-money.js prize()).
  *
  * @return {String}
  */
@@ -596,11 +595,13 @@ RoomController.prototype.prizeLabel = function()
 {
     var count = this.room ? this.room.players.items.length : 0;
 
-    if (count < 3) {
+    // Same rule the server pays with (kurver-money.js prize()):
+    // 3 players → $5, otherwise $2 × (n − 1); nothing to show while it's $0.
+    var prize = count === 3 ? 5 : Math.max(0, 2 * (count - 1));
+
+    if (!prize) {
         return 'Waiting for players… (min 3)';
     }
-
-    var prize = count === 3 ? 5 : 2 * (count - 1);
 
     return count + ' players — Prize: $' + prize;
 };

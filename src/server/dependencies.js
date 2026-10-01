@@ -23,3 +23,6 @@ try {
 } catch (error) {
     influx = false;
 }
+
+// tenten.run login, prize and win credit (shared mediaskills database)
+var KurverMoney = require('../kurver-money.js');

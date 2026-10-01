@@ -4154,8 +4154,7 @@ RoomController.prototype.toggleParameters = function()
 
 /**
  * Display-only live prize label for the current player count.
- * Formula: $2 x (playerCount - 1), except 3 players shows $5 not $4.
- * Below 3 players there is no prize to show yet.
+ * Same formula the server pays with (kurver-money.js prize()).
  *
  * @return {String}
  */
@@ -4163,11 +4162,13 @@ RoomController.prototype.prizeLabel = function()
 {
     var count = this.room ? this.room.players.items.length : 0;
 
-    if (count < 3) {
+    // Same rule the server pays with (kurver-money.js prize()):
+    // 3 players \u2192 $5, otherwise $2 \u00d7 (n \u2212 1); nothing to show while it's $0.
+    var prize = count === 3 ? 5 : Math.max(0, 2 * (count - 1));
+
+    if (!prize) {
         return 'Waiting for players\u2026 (min 3)';
     }
-
-    var prize = count === 3 ? 5 : 2 * (count - 1);
 
     return count + ' players \u2014 Prize: $' + prize;
 };
@@ -5431,7 +5432,13 @@ function SocketClient()
         protocol = 'wss://';
     }
 
-    BaseSocketClient.call(this, new Socket(protocol + document.location.host + document.location.pathname, ['websocket']));
+    // tenten.run login handoff (stored by the page from #token=…&player_id=…);
+    // the server refuses any socket without a valid one.
+    var auth = null;
+    try { auth = JSON.parse(window.sessionStorage.getItem('kurver_auth')); } catch (e) {}
+    var query = auth && auth.token ? '?token=' + encodeURIComponent(auth.token) + '&player_id=' + encodeURIComponent(auth.playerId) : '';
+
+    BaseSocketClient.call(this, new Socket(protocol + document.location.host + document.location.pathname + query, ['websocket']));
 
     this.socket.addEventListener('open', this.onOpen);
     this.socket.addEventListener('error', this.onError);

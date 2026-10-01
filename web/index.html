@@ -119,17 +119,12 @@ section.room label {
     background: rgba(255,255,255,0.04) !important;
 }
         
-/* ── Prize claim overlay ── */
-#kurver-prize-overlay{position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,0.88);display:none;flex-direction:column;align-items:center;justify-content:center;padding:24px;font-family:'Space Grotesk',sans-serif;}
-#kurver-prize-box{background:#0d0d0d;border:3px solid #ffe44d;box-shadow:0 0 32px rgba(255,228,77,0.25);padding:28px 24px;width:100%;max-width:400px;text-align:center;}
-.kp-title{font-family:'Press Start 2P',monospace;font-size:12px;color:#ffe44d;margin-bottom:6px;}
-.kp-prize{font-family:'Press Start 2P',monospace;font-size:26px;color:#ffe44d;margin-bottom:14px;}
-.kp-sub{font-size:13px;color:rgba(255,255,255,0.65);line-height:1.6;margin-bottom:20px;}
-.kp-input{width:100%;padding:11px;margin-bottom:9px;background:#111;border:2px solid #ffe44d;color:#fff;font-family:'Space Grotesk',sans-serif;font-size:14px;box-sizing:border-box;}
-.kp-textarea{width:100%;padding:11px;margin-bottom:14px;background:#111;border:2px solid rgba(255,255,255,0.15);color:#fff;font-family:'Space Grotesk',sans-serif;font-size:14px;box-sizing:border-box;height:72px;resize:none;}
-.kp-btn{width:100%;padding:13px;background:#ffe44d;color:#000;font-family:'Press Start 2P',monospace;font-size:9px;border:none;cursor:pointer;letter-spacing:1px;}
-.kp-success{display:none;margin-top:14px;font-size:13px;color:#22ff6e;line-height:1.6;}
-.kp-error{display:none;margin-top:10px;font-size:12px;color:#ff4757;}
+/* ── Win result + login gate overlays (tenten.run auto-credit; replaces the old $8 PayPal claim form) ── */
+#kurver-prize-overlay,#kurver-login-gate{position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,0.88);display:none;flex-direction:column;align-items:center;justify-content:center;padding:16px;}
+#kurver-prize-box,#kurver-login-box{background:#0d0d0d;border:3px solid #ffe44d;box-shadow:0 0 32px rgba(255,228,77,0.25);padding:28px 24px;width:100%;max-width:400px;text-align:center;}
+.kp-title{font-family:'Press Start 2P',monospace;font-size:12px;color:#ffe44d;margin-bottom:14px;}
+.kp-sub{font-size:14px;color:rgba(255,255,255,0.8);line-height:1.6;margin-bottom:20px;}
+.kp-btn{display:inline-block;width:100%;padding:13px;background:#ffe44d;color:#000;font-family:'Press Start 2P',monospace;font-size:9px;border:none;cursor:pointer;letter-spacing:1px;text-decoration:none;box-sizing:border-box;}
 </style>
         <meta property="og:title" content="Curvytron - A multiplayer tron-like game... with curves!"/>
         <meta property="og:type" content="game"/>
@@ -178,7 +173,37 @@ section.room label {
         </div>
 
         <script>
-/* Prize claim: intercept WebSocket to detect payout event from server */
+/* tenten.run login handoff — runs before the game app boots.
+   The homepage's Kurver PLAY button lands here as /multiplayer#token=…&player_id=…&name=…
+   (a fragment, so it never reaches server logs). Keep it in sessionStorage for
+   this tab (the game's socket sends it on connect), put the account name into
+   the player profile, and hand the hash back to the app's router. No login →
+   a gate that sends the player to log in on tenten.run. */
+(function(){
+  var h = new URLSearchParams(location.hash.replace(/^#\/?/, ''));
+  if (h.get('token') && h.get('player_id')) {
+    var a = { token: h.get('token'), playerId: Number(h.get('player_id')), name: h.get('name') || '' };
+    try { sessionStorage.setItem('kurver_auth', JSON.stringify(a)); } catch(e) {}
+    try {
+      var prof = JSON.parse(localStorage.getItem('PROFILE') || '{}');
+      if (a.name) { prof.name = a.name; localStorage.setItem('PROFILE', JSON.stringify(prof)); }
+    } catch(e) {}
+    history.replaceState(null, '', location.pathname + location.search + '#/');
+  }
+  var auth = null;
+  try { auth = JSON.parse(sessionStorage.getItem('kurver_auth')); } catch(e) {}
+  window._kurverAuth = auth;
+  if (!auth) {
+    document.addEventListener('DOMContentLoaded', function(){
+      var g = document.getElementById('kurver-login-gate');
+      if (g) g.style.display = 'flex';
+    });
+  }
+})();
+
+/* Win result: the server credits the winner's tenten.run balance and sends
+   ['kurver:credit', {status, amount}] to the winner. Listen on the game's
+   socket and show the result. */
 (function(){
   var _Orig = window.WebSocket;
   window.WebSocket = function(url, protos) {
@@ -188,10 +213,7 @@ section.room label {
         var evts = JSON.parse(e.data);
         if (!Array.isArray(evts)) return;
         for (var i = 0; i < evts.length; i++) {
-          if (Array.isArray(evts[i]) && evts[i][0] === 'payout') {
-            var overlay = document.getElementById('kurver-prize-overlay');
-            if (overlay) overlay.style.display = 'flex';
-          }
+          if (Array.isArray(evts[i]) && evts[i][0] === 'kurver:credit') { _kurverShowCredit(evts[i][1] || {}); }
         }
       } catch(err) {}
     });
@@ -201,35 +223,15 @@ section.room label {
   window.WebSocket.prototype = _Orig.prototype;
 })();
 
-function _kurverSubmitClaim() {
-  var name    = (document.getElementById('kp-name').value || '').trim();
-  var paypal  = (document.getElementById('kp-paypal').value || '').trim();
-  var contact = (document.getElementById('kp-contact').value || '').trim();
-  var notes   = (document.getElementById('kp-notes').value || '').trim();
-  var errEl   = document.getElementById('kp-error');
-  errEl.style.display = 'none';
-  if (!name) { errEl.style.display='block'; errEl.textContent='Please enter your full name'; return; }
-  if (!paypal && !notes) { errEl.style.display='block'; errEl.textContent='Please enter your PayPal email or leave a note'; return; }
-  var btn = document.getElementById('kp-submit');
-  btn.textContent = 'SUBMITTING...'; btn.disabled = true;
-  fetch('https://curvytron77.onrender.com/submit-prize-claim', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ winner_name: name, paypal_email: paypal, contact_email: contact, notes: notes, game: 'Kurver Multiplayer', prize_amount: '$8' })
-  }).then(function(r){ return r.json(); }).then(function(d){
-    if (d.success) {
-      document.getElementById('kp-success').style.display = 'block';
-      btn.style.display = 'none';
-    } else { throw new Error('failed'); }
-  }).catch(function(){
-    btn.textContent = '► CLAIM MY PRIZE'; btn.disabled = false;
-    errEl.style.display = 'block'; errEl.textContent = 'Something went wrong. Please try again.';
-  });
+function _kurverShowCredit(c) {
+  var overlay = document.getElementById('kurver-prize-overlay'), msg = document.getElementById('kp-result');
+  if (!overlay || !msg) return;
+  if (c.status === 'credited') msg.textContent = 'You won! $' + c.amount + ' added to your balance';
+  else if (c.status === 'disabled') msg.textContent = "Cash prizes aren't live yet — no balance was credited for this win.";
+  else if (c.status === 'none') msg.textContent = 'You won! There was no prize for this game.';
+  else msg.textContent = "Your prize couldn't be added automatically — it's been logged and will be credited.";
+  overlay.style.display = 'flex';
 }
-document.addEventListener('DOMContentLoaded', function(){
-  var btn = document.getElementById('kp-submit');
-  if (btn) btn.onclick = _kurverSubmitClaim;
-});
         </script>
         <script src="js/dependencies.js"></script>
         <script src="js/curvytron.js"></script>
@@ -333,19 +335,21 @@ function kurverSubmitRoom() {
 }
         </script>
 
-<!-- Prize claim overlay (shown to Kurver game winner) -->
+<!-- Win result (shown to the Kurver game winner; tenten.run auto-credit) -->
 <div id="kurver-prize-overlay">
   <div id="kurver-prize-box">
     <div class="kp-title">🏆 YOU WON!</div>
-    <div class="kp-prize">$8 PRIZE</div>
-    <div class="kp-sub">Enter your details below. Your prize will be sent to your PayPal within 48 hours.</div>
-    <input id="kp-name" class="kp-input" type="text" placeholder="Full name" />
-    <input id="kp-paypal" class="kp-input" type="email" placeholder="PayPal email" />
-    <input id="kp-contact" class="kp-input" type="email" placeholder="Contact email" />
-    <textarea id="kp-notes" class="kp-textarea" placeholder="No PayPal? Questions? (optional)"></textarea>
-    <button id="kp-submit" class="kp-btn">► CLAIM MY PRIZE</button>
-    <div class="kp-success" id="kp-success">✓ Claim received! Your prize will be sent to your PayPal within 48 hours.</div>
-    <div class="kp-error" id="kp-error"></div>
+    <div class="kp-sub" id="kp-result"></div>
+    <button class="kp-btn" onclick="document.getElementById('kurver-prize-overlay').style.display='none'">► OK</button>
+  </div>
+</div>
+
+<!-- Login gate (no tenten.run login handoff) -->
+<div id="kurver-login-gate">
+  <div id="kurver-login-box">
+    <div class="kp-title">LOG IN TO PLAY</div>
+    <div class="kp-sub">Kurver pays real prizes, so you need a tenten.run account. Log in on tenten.run, then press PLAY on Kurver.</div>
+    <a class="kp-btn" href="https://www.tenten.run/?play=kurver">► LOG IN ON TENTEN.RUN</a>
   </div>
 </div>
     </body>
