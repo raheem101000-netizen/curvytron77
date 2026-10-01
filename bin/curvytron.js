@@ -1994,7 +1994,8 @@ BaseRoom.prototype.serialize = function(full)
         name: this.name,
         players: full ? this.players.map(function () { return this.serialize(); }).items : this.players.count(),
         game: this.game ? true : false,
-        open: this.config.open
+        open: this.config.open,
+        code: this.code || null
     };
 
     if (full) {
@@ -3841,7 +3842,8 @@ function RoomsController(repository)
     this.callbacks = {
         emitAllRooms: function () { controller.emitAllRooms(this); },
         onCreateRoom: function (data) { controller.onCreateRoom(this, data[0], data[1]); },
-        onJoinRoom: function (data) { controller.onJoinRoom(this, data[0], data[1]); }
+        onJoinRoom: function (data) { controller.onJoinRoom(this, data[0], data[1]); },
+        onFindByCode: function (data) { controller.onFindByCode(this, data[0], data[1]); }
     };
 
     this.repository.on('room:open', this.onRoomOpen);
@@ -3886,6 +3888,7 @@ RoomsController.prototype.attachEvents = function(client)
     client.on('room:fetch', this.callbacks.emitAllRooms);
     client.on('room:create', this.callbacks.onCreateRoom);
     client.on('room:join', this.callbacks.onJoinRoom);
+    client.on('room:code', this.callbacks.onFindByCode);
 };
 
 /**
@@ -3899,6 +3902,7 @@ RoomsController.prototype.detachEvents = function(client)
     client.removeListener('room:fetch', this.callbacks.emitAllRooms);
     client.removeListener('room:create', this.callbacks.onCreateRoom);
     client.removeListener('room:join', this.callbacks.onJoinRoom);
+    client.removeListener('room:code', this.callbacks.onFindByCode);
 };
 
 /**
@@ -3928,18 +3932,66 @@ RoomsController.prototype.emitAllRooms = function(client)
  */
 RoomsController.prototype.onCreateRoom = function(client, data, callback)
 {
-    var name = data.name.substr(0, Room.prototype.maxLength).trim(),
-        room = this.repository.create(name);
+    data = data || {};
 
-    if (room && typeof data.open !== 'undefined' && data.open === false) {
-        room.config.setOpen(false);
+    var name     = typeof(data.name) === 'string' ? data.name.substr(0, Room.prototype.maxLength).trim() : '',
+        priv     = data.open === false,
+        password = typeof(data.password) === 'string' ? data.password.substr(0, RoomsController.prototype.passwordMaxLength) : '';
+
+    if (!name) {
+        return callback({success: false, error: 'Enter a match name.'});
     }
 
-    callback(room ? {success: true, room: room.serialize(false)} : {success: false});
+    if (priv && !password.trim().length) {
+        return callback({success: false, error: 'Enter a password for a private match.'});
+    }
+
+    if (this.repository.get(name)) {
+        return callback({success: false, error: 'A match called "' + name + '" already exists. Pick another name.'});
+    }
+
+    var room = this.repository.create(name, {password: priv ? password : null});
+
+    callback(room ? {success: true, room: room.serialize(false)} : {success: false, error: 'Could not create the match.'});
 
     if (room) {
         this.emit('room:new', {room: room});
     }
+};
+
+RoomsController.prototype.passwordMaxLength = 20;
+
+/**
+ * Join by code: find the match a code belongs to. Same rules as FIFA/Puz —
+ * unknown code, a match that has already started, or a wrong password are
+ * refused. On success the client goes to the room (which checks the
+ * password again on room:join).
+ *
+ * @param {SocketClient} client
+ * @param {Object} data
+ * @param {Function} callback
+ */
+RoomsController.prototype.onFindByCode = function(client, data, callback)
+{
+    data = data || {};
+
+    var code = typeof(data.code) === 'string' ? data.code.trim() : '',
+        room = code ? this.repository.getByCode(code) : null,
+        password = typeof(data.password) === 'string' && data.password.length ? data.password : null;
+
+    if (!room) {
+        return callback({success: false, error: 'No match with that code. Check it, or the match may have closed.'});
+    }
+
+    if (room.game) {
+        return callback({success: false, error: 'That match has already started.'});
+    }
+
+    if (!room.config.allow(password)) {
+        return callback({success: false, error: password ? 'Wrong password.' : 'This match is private. Enter its password.'});
+    }
+
+    callback({success: true, name: room.name, open: room.config.open});
 };
 
 /**
@@ -7464,6 +7516,17 @@ RoomConfig.prototype.bonusTypes = {
 };
 
 /**
+ * Make the room private with the host's own password (at creation)
+ *
+ * @param {String} password
+ */
+RoomConfig.prototype.setPrivate = function(password)
+{
+    this.open     = false;
+    this.password = password;
+};
+
+/**
  * Set open
  *
  * @param {Boolean} open
@@ -7526,6 +7589,7 @@ function RoomRepository()
 
     this.generator = new RoomNameGenerator();
     this.rooms     = new Collection([], 'name');
+    this.codes     = {};
 
     this.onRoomClose = this.onRoomClose.bind(this);
 
@@ -7541,16 +7605,24 @@ RoomRepository.prototype.constructor = RoomRepository;
  *
  * @return {Room}
  */
-RoomRepository.prototype.create = function(name)
+RoomRepository.prototype.create = function(name, options)
 {
-    if (typeof(name) === 'undefined' || !name) {
-        name = this.getRandomRoomName();
-    }
+    // Kurver: the host always names the match — no auto-generated names.
+    if (typeof(name) !== 'string' || !name) { return false; }
 
     var room = new Room(name);
 
+    // Shareable match code (same format as FIFA/Puz's Match ID: 9 characters).
+    room.code = this.getUniqueCode();
+
+    // Private: the host's own password, set before the room is listed.
+    if (options && typeof(options.password) === 'string' && options.password.length) {
+        room.config.setPrivate(options.password);
+    }
+
     if (!this.rooms.add(room)) { return false; }
 
+    this.codes[room.code] = room;
     room.on('close', this.onRoomClose);
     this.emit('room:open', {room: room});
 
@@ -7565,6 +7637,7 @@ RoomRepository.prototype.create = function(name)
 RoomRepository.prototype.remove = function(room)
 {
     if (this.rooms.remove(room)) {
+        if (room.code && this.codes[room.code] === room) { delete this.codes[room.code]; }
         this.emit('room:close', {room: room});
 
         return true;
@@ -7583,6 +7656,38 @@ RoomRepository.prototype.remove = function(room)
 RoomRepository.prototype.get = function(name)
 {
     return this.rooms.getById(name);
+};
+
+/**
+ * Get by match code
+ *
+ * @param {String} code
+ *
+ * @return {Room}
+ */
+RoomRepository.prototype.getByCode = function(code)
+{
+    return Object.prototype.hasOwnProperty.call(this.codes, code) ? this.codes[code] : null;
+};
+
+/**
+ * A match code no open match is using: 9 characters, same alphabet as
+ * FIFA/Puz's Colyseus room IDs (A-Z a-z 0-9 _ -).
+ *
+ * @return {String}
+ */
+RoomRepository.prototype.getUniqueCode = function()
+{
+    var alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-',
+        code;
+
+    do {
+        var bytes = require('crypto').randomBytes(9);
+        code = '';
+        for (var i = 0; i < 9; i++) { code += alphabet[bytes[i] & 63]; }
+    } while (this.codes[code]);
+
+    return code;
 };
 
 /**

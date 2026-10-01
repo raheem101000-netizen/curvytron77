@@ -44,12 +44,10 @@
                     'one': 'You can join 1 room!',
                     'other': 'You can join {} rooms!'}"/>
             </span>
-            <form ng-submit="createRoom()" class="top-right-form">
-                <button type="submit" id="submit">
-                    <span><i class="icon-plus"></i></span>
-                </button>
-                <input type="text" ng-model="roomName" class="form-control clearfix" name="name" placeholder="Create a new room..." maxlength="{{ ::roomMaxLength }}"/>
-            </form>
+            <div class="kurver-lobby-actions">
+                <button type="button" class="kla-btn kla-join" id="kurver-open-join" ng-click="openJoin()">Join with code</button>
+                <button type="button" class="kla-btn kla-create" id="kurver-open-create" ng-click="openCreate()">+ Create match</button>
+            </div>
         </h2>
 
         <table id="rooms" class="rooms table table-hover v-align-middle" ng-if="!rooms.isEmpty()">
@@ -61,9 +59,6 @@
                     </td>
                     <td class="room-enter-col">
                         <i class="icon-lock" ng-if="!room.open"></i>
-                        <form class="room-password-col" ng-if="!room.open" ng-submit="join(room)">
-                            <input type="text" class="form-control password" maxlength="4" ng-model="room.password" placeholder="••••"/>
-                        </form>
                         <div class="room-enter-container">
                             <p class="room-enter"><span><i class="icon-game"></i> Join</span></p>
                         </div>
@@ -76,9 +71,6 @@
                     </td>
                     <td class="room-enter-col">
                         <i class="icon-lock" ng-if="!room.open"></i>
-                        <form class="room-password-col" ng-if="!room.open" ng-submit="join(room)">
-                            <input type="text" class="form-control password" maxlength="4" ng-model="room.password" placeholder="••••"/>
-                        </form>
                         <div class="room-enter-container">
                             <p class="room-enter"><span><i class="icon-spectate"></i> Spectate</span></p>
                         </div>
@@ -87,9 +79,70 @@
             </tbody>
         </table>
     </div>
+
+    <!-- Create match (same fields as FIFA / Puz: name, public or private, password) -->
+    <div class="kurver-modal-bg" ng-if="createForm.visible" ng-click="backdropClose($event)">
+        <form class="kurver-modal" id="kurver-create-modal" ng-submit="createRoom()" novalidate>
+            <h3>CREATE MATCH</h3>
+            <label for="kurver-create-name">MATCH NAME</label>
+            <input type="text" id="kurver-create-name" ng-model="createForm.name" maxlength="{{ ::roomMaxLength }}" placeholder="e.g. Friday night curves" autocomplete="off"/>
+            <div class="km-toggle">
+                <button type="button" id="kurver-type-public" ng-class="{active: createForm.type === 'public'}" ng-click="createForm.type = 'public'">Public</button>
+                <button type="button" id="kurver-type-private" ng-class="{active: createForm.type === 'private'}" ng-click="createForm.type = 'private'">Private</button>
+            </div>
+            <div ng-if="createForm.type === 'private'">
+                <label for="kurver-create-password">PASSWORD</label>
+                <input type="text" id="kurver-create-password" ng-model="createForm.password" maxlength="{{ ::passwordMaxLength }}" placeholder="Match password" autocomplete="off"/>
+            </div>
+            <p class="km-note" ng-if="createForm.type === 'public'">Listed in the lobby for anyone to join.</p>
+            <p class="km-note" ng-if="createForm.type === 'private'">Listed with a lock. Players need the password to join.</p>
+            <div class="km-error" id="kurver-create-error">{{ createForm.error }}</div>
+            <div class="km-btns">
+                <button type="submit" class="km-primary" id="kurver-create-submit" ng-disabled="createForm.busy">{{ createForm.busy ? 'Creating…' : 'Create' }}</button>
+                <button type="button" class="km-ghost" ng-click="closeModals()">Cancel</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Join with code -->
+    <div class="kurver-modal-bg" ng-if="joinForm.visible" ng-click="backdropClose($event)">
+        <form class="kurver-modal" id="kurver-join-modal" ng-submit="joinByCode()" novalidate>
+            <h3>{{ joinForm.locked ? 'JOIN PRIVATE MATCH' : 'JOIN WITH CODE' }}</h3>
+            <label for="kurver-join-code">MATCH CODE</label>
+            <input type="text" id="kurver-join-code" ng-model="joinForm.code" placeholder="Paste the match code" autocomplete="off" autocapitalize="off" spellcheck="false" ng-readonly="joinForm.locked"/>
+            <label for="kurver-join-password">{{ joinForm.locked ? 'PASSWORD' : 'PASSWORD (PRIVATE MATCHES ONLY)' }}</label>
+            <input type="password" id="kurver-join-password" ng-model="joinForm.password" maxlength="{{ ::passwordMaxLength }}" placeholder="{{ joinForm.locked ? 'Enter password' : 'Leave blank for public matches' }}"/>
+            <div class="km-error" id="kurver-join-error">{{ joinForm.error }}</div>
+            <div class="km-btns">
+                <button type="submit" class="km-primary" id="kurver-join-submit" ng-disabled="joinForm.busy">{{ joinForm.busy ? 'Joining…' : 'Join' }}</button>
+                <button type="button" class="km-ghost" ng-click="closeModals()">Cancel</button>
+            </div>
+        </form>
+    </div>
 </section>
 
 <style>
+.kurver-lobby-actions{float:right;display:flex;gap:8px;align-items:center;position:relative;z-index:2;}
+.kla-btn{font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:700;letter-spacing:.5px;border-radius:8px;padding:9px 16px;cursor:pointer;border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.05);color:#fff;}
+.kla-create{background:#b450ff;border-color:#b450ff;color:#fff;}
+.kla-join{border-color:#50c8ff;color:#50c8ff;}
+.kurver-modal-bg{position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,0.72);display:flex;align-items:center;justify-content:center;padding:16px;}
+.kurver-modal{width:100%;max-width:400px;background:#14111c;border:1px solid rgba(180,80,255,0.35);border-radius:14px;padding:22px;font-family:'Space Grotesk',sans-serif;color:#fff;}
+.kurver-modal h3{margin:0 0 16px;font-size:16px;letter-spacing:2px;}
+.kurver-modal label{display:block;font-size:11px;color:rgba(255,255,255,0.5);letter-spacing:1px;margin:12px 0 6px;}
+.kurver-modal input{width:100%;box-sizing:border-box;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);border-radius:8px;padding:10px 12px;color:#fff;font-size:15px;outline:none;}
+.kurver-modal input[readonly]{opacity:.6;}
+.km-toggle{display:flex;gap:8px;margin-top:14px;}
+.km-toggle button{flex:1;padding:9px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.05);color:rgba(255,255,255,0.55);cursor:pointer;font-weight:700;font-family:inherit;}
+.km-toggle button.active{border-color:#b450ff;background:rgba(180,80,255,0.18);color:#fff;}
+.km-note{font-size:12px;color:rgba(255,255,255,0.45);margin:10px 0 0;}
+.km-error{font-size:13px;color:#ff5f5f;min-height:18px;margin-top:10px;}
+.km-btns{display:flex;gap:8px;margin-top:12px;}
+.km-btns button{padding:10px 16px;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit;}
+.km-primary{flex:1;background:#b450ff;border:1px solid #b450ff;color:#fff;}
+.km-primary[disabled]{opacity:.5;}
+.km-ghost{background:none;border:1px solid rgba(255,255,255,0.2);color:#fff;}
+@media(max-width:600px){.kurver-lobby-actions{width:100%;margin-top:10px;}.kla-btn{flex:1;}}
 .kurver-prize-bar{display:flex;align-items:center;gap:30px;background:linear-gradient(135deg,rgba(180,80,255,0.14),rgba(80,200,255,0.07));border:1px solid rgba(180,80,255,0.3);border-radius:18px;padding:26px 32px;flex-wrap:wrap;margin:10px 0;font-family:'Space Grotesk',sans-serif;}
 .kpb-entry{text-align:center;padding-right:30px;border-right:1px solid rgba(255,255,255,0.14);}
 .kpb-entry-n{font-size:46px;font-weight:700;color:#fff;line-height:1;}

@@ -22,7 +22,8 @@ function RoomsController(repository)
     this.callbacks = {
         emitAllRooms: function () { controller.emitAllRooms(this); },
         onCreateRoom: function (data) { controller.onCreateRoom(this, data[0], data[1]); },
-        onJoinRoom: function (data) { controller.onJoinRoom(this, data[0], data[1]); }
+        onJoinRoom: function (data) { controller.onJoinRoom(this, data[0], data[1]); },
+        onFindByCode: function (data) { controller.onFindByCode(this, data[0], data[1]); }
     };
 
     this.repository.on('room:open', this.onRoomOpen);
@@ -67,6 +68,7 @@ RoomsController.prototype.attachEvents = function(client)
     client.on('room:fetch', this.callbacks.emitAllRooms);
     client.on('room:create', this.callbacks.onCreateRoom);
     client.on('room:join', this.callbacks.onJoinRoom);
+    client.on('room:code', this.callbacks.onFindByCode);
 };
 
 /**
@@ -80,6 +82,7 @@ RoomsController.prototype.detachEvents = function(client)
     client.removeListener('room:fetch', this.callbacks.emitAllRooms);
     client.removeListener('room:create', this.callbacks.onCreateRoom);
     client.removeListener('room:join', this.callbacks.onJoinRoom);
+    client.removeListener('room:code', this.callbacks.onFindByCode);
 };
 
 /**
@@ -109,14 +112,66 @@ RoomsController.prototype.emitAllRooms = function(client)
  */
 RoomsController.prototype.onCreateRoom = function(client, data, callback)
 {
-    var name = data.name.substr(0, Room.prototype.maxLength).trim(),
-        room = this.repository.create(name);
+    data = data || {};
 
-    callback(room ? {success: true, room: room.serialize(false)} : {success: false});
+    var name     = typeof(data.name) === 'string' ? data.name.substr(0, Room.prototype.maxLength).trim() : '',
+        priv     = data.open === false,
+        password = typeof(data.password) === 'string' ? data.password.substr(0, RoomsController.prototype.passwordMaxLength) : '';
+
+    if (!name) {
+        return callback({success: false, error: 'Enter a match name.'});
+    }
+
+    if (priv && !password.trim().length) {
+        return callback({success: false, error: 'Enter a password for a private match.'});
+    }
+
+    if (this.repository.get(name)) {
+        return callback({success: false, error: 'A match called "' + name + '" already exists. Pick another name.'});
+    }
+
+    var room = this.repository.create(name, {password: priv ? password : null});
+
+    callback(room ? {success: true, room: room.serialize(false)} : {success: false, error: 'Could not create the match.'});
 
     if (room) {
         this.emit('room:new', {room: room});
     }
+};
+
+RoomsController.prototype.passwordMaxLength = 20;
+
+/**
+ * Join by code: find the match a code belongs to. Same rules as FIFA/Puz —
+ * unknown code, a match that has already started, or a wrong password are
+ * refused. On success the client goes to the room (which checks the
+ * password again on room:join).
+ *
+ * @param {SocketClient} client
+ * @param {Object} data
+ * @param {Function} callback
+ */
+RoomsController.prototype.onFindByCode = function(client, data, callback)
+{
+    data = data || {};
+
+    var code = typeof(data.code) === 'string' ? data.code.trim() : '',
+        room = code ? this.repository.getByCode(code) : null,
+        password = typeof(data.password) === 'string' && data.password.length ? data.password : null;
+
+    if (!room) {
+        return callback({success: false, error: 'No match with that code. Check it, or the match may have closed.'});
+    }
+
+    if (room.game) {
+        return callback({success: false, error: 'That match has already started.'});
+    }
+
+    if (!room.config.allow(password)) {
+        return callback({success: false, error: password ? 'Wrong password.' : 'This match is private. Enter its password.'});
+    }
+
+    callback({success: true, name: room.name, open: room.config.open});
 };
 
 /**

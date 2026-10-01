@@ -32,6 +32,24 @@
         </h3>
         <div class="clearfix"></div>
 
+        <div class="kurver-code-box" ng-if="room.code">
+            <div class="kcb-label">MATCH CODE: friends enter it in “Join with code”</div>
+            <div class="kcb-row">
+                <span class="kcb-code" id="kurver-match-code">{{ room.code }}</span>
+                <button type="button" class="kcb-copy" id="kurver-copy-code" ng-click="copyCode($event)">COPY CODE</button>
+            </div>
+            <div class="kcb-pass" id="kurver-code-pass" ng-if="!room.config.open && room.config.password">Private match. Friends also need the password: <b>{{ room.config.password }}</b></div>
+        </div>
+        <style>
+        .kurver-code-box{margin:10px 0 14px;padding:12px 16px;background:rgba(80,200,255,0.07);border:1px solid rgba(80,200,255,0.35);border-radius:10px;font-family:'Space Grotesk',sans-serif;}
+        .kcb-label{font-size:11px;letter-spacing:1.5px;color:rgba(120,210,255,0.75);margin-bottom:6px;}
+        .kcb-row{display:flex;align-items:center;gap:12px;}
+        .kcb-code{flex:1;font-family:monospace;font-size:24px;font-weight:700;letter-spacing:2px;color:#fff;user-select:all;word-break:break-all;}
+        .kcb-copy{background:#50c8ff;color:#06121c;border:none;border-radius:6px;padding:8px 14px;font-weight:700;font-size:12px;cursor:pointer;}
+        .kcb-pass{font-size:12px;color:rgba(255,255,255,0.55);margin-top:8px;}
+        .kcb-pass b{color:#fff;}
+        </style>
+
         <div class="room-details">
 
             <div ng-if="hasTouch" class="touch">

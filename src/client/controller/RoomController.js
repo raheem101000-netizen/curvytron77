@@ -69,6 +69,7 @@ function RoomController($scope, $routeParams, $location, client, repository, pro
     this.$scope.setName           = this.setName;
     this.$scope.setTouch          = this.setTouch;
     this.$scope.toggleParameters  = this.toggleParameters;
+    this.$scope.copyCode          = this.copyCode.bind(this);
     this.$scope.prizeLabel        = this.prizeLabel;
     this.$scope.nameMaxLength     = Player.prototype.maxLength;
     this.$scope.colorMaxLength    = Player.prototype.colorMaxLength;
@@ -574,6 +575,38 @@ RoomController.prototype.clearLaunchInterval = function()
 {
     if (this.launchInterval) {
         this.launchInterval = clearInterval(this.launchInterval);
+    }
+};
+
+/**
+ * Copy the match code (COPY CODE button)
+ *
+ * @param {Event} e
+ */
+RoomController.prototype.copyCode = function(e)
+{
+    var code = this.room && this.room.code,
+        btn  = e && e.target;
+
+    if (!code) { return; }
+
+    var fallback = function () {
+        var el = document.getElementById('kurver-match-code');
+        if (!el) { return; }
+        var range = document.createRange(), sel = window.getSelection();
+        range.selectNodeContents(el); sel.removeAllRanges(); sel.addRange(range);
+        try { document.execCommand('copy'); } catch (err) {}
+    };
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(code).catch(fallback);
+    } else {
+        fallback();
+    }
+
+    if (btn) {
+        btn.textContent = 'COPIED!';
+        setTimeout(function () { btn.textContent = 'COPY CODE'; }, 2000);
     }
 };
 

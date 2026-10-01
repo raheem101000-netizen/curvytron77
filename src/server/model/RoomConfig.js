@@ -32,6 +32,17 @@ RoomConfig.prototype.bonusTypes = {
 };
 
 /**
+ * Make the room private with the host's own password (at creation)
+ *
+ * @param {String} password
+ */
+RoomConfig.prototype.setPrivate = function(password)
+{
+    this.open     = false;
+    this.password = password;
+};
+
+/**
  * Set open
  *
  * @param {Boolean} open

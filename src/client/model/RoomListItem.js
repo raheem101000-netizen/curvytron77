@@ -6,12 +6,13 @@
  * @param {Boolean} game
  * @param {Boolean} open
  */
-function RoomListItem(name, players, game, open)
+function RoomListItem(name, players, game, open, code)
 {
     this.name     = name;
     this.players  = players;
     this.game     = game;
     this.open     = open;
+    this.code     = code || null;
     this.password = '';
 }
 

@@ -71,13 +71,32 @@ RoomsRepository.prototype.get = function(name)
  * @param {String} name
  * @param {Function} callback
  */
-RoomsRepository.prototype.create = function(name, callback)
+RoomsRepository.prototype.create = function(name, callback, options)
 {
     if (typeof(name) === 'string') {
         name = name.substr(0, Room.prototype.maxLength).trim();
     }
 
-    this.client.addEvent('room:create', {name: name}, callback);
+    var data = {name: name};
+
+    if (options && options.open === false) {
+        data.open     = false;
+        data.password = options.password;
+    }
+
+    this.client.addEvent('room:create', data, callback);
+};
+
+/**
+ * Find the match a code belongs to (checks password / started on the server)
+ *
+ * @param {String} code
+ * @param {String} password
+ * @param {Function} callback
+ */
+RoomsRepository.prototype.findByCode = function(code, password, callback)
+{
+    this.client.addEvent('room:code', {code: code, password: password}, callback);
 };
 
 /**
@@ -89,7 +108,7 @@ RoomsRepository.prototype.create = function(name, callback)
  */
 RoomsRepository.prototype.createRoom = function(data)
 {
-    return new RoomListItem(data.name, data.players,  data.game, data.open);
+    return new RoomListItem(data.name, data.players,  data.game, data.open, data.code);
 };
 
 // EVENTS:
