@@ -167,6 +167,10 @@ RoomsController.prototype.onFindByCode = function(client, data, callback)
         return callback({success: false, error: 'That match has already started.'});
     }
 
+    if (client.userId && room.kickedUserIds && room.kickedUserIds.indexOf(client.userId) >= 0) {
+        return callback({success: false, error: 'You were removed from this room by the host.'});
+    }
+
     if (!room.config.allow(password)) {
         return callback({success: false, error: password ? 'Wrong password.' : 'This match is private. Enter its password.'});
     }
@@ -193,6 +197,10 @@ RoomsController.prototype.onJoinRoom = function(client, data, callback)
 
     if (!room.config.allow(password)) {
         return callback({success: false, error: 'Wrong password.'});
+    }
+
+    if (client.userId && room.kickedUserIds && room.kickedUserIds.indexOf(client.userId) >= 0) {
+        return callback({success: false, error: 'You were removed from this room by the host.'});
     }
 
     room.controller.attach(client, callback);

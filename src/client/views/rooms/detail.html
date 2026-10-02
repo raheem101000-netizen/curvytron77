@@ -9,8 +9,8 @@
             <ng-include src="'js/views/rooms/parameters.html'"></ng-include>
         </div>
 
-        <button type="button" class="btn start-now" ng-click="launch()" ng-if="master || launching">
-            <span class="label" ng-if="!launching">Start now!</span>
+        <button type="button" class="btn start-now" ng-click="launch()" ng-if="master || launching" ng-disabled="master && !launching && !othersReady()" title="{{ (master && !launching && !othersReady()) ? 'Waiting for every player to be ready' : '' }}">
+            <span class="label" ng-if="!launching">{{ othersReady() ? 'Start now!' : 'Waiting for players…' }}</span>
             <span id="starter-count" ng-if="launching">{{ launching }}</span>
         </button>
 
@@ -109,8 +109,8 @@
                         </td>
                     </tr>
                     <tr ng-repeat="player in room.players.items track by player.id | orderBy:'position'" ng-if="!player.local">
-                        <td class="col-remove col-show-hover {{ player.vote ? 'active' : '' }}">
-                            <button type="button" class="btn btn-link btn-sm btn-remove pull-left" ng-click="kickPlayer(player)">
+                        <td class="col-remove {{ player.vote ? 'active' : '' }}">
+                            <button type="button" class="btn btn-link btn-sm btn-remove pull-left" ng-if="master" title="Remove from room" ng-click="kickPlayer(player)">
                                 <span class="icon-kick {{ player.kicked ? 'kicked' : '' }}"></span>
                             </button>
                         </td>

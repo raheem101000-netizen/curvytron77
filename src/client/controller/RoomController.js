@@ -70,6 +70,8 @@ function RoomController($scope, $routeParams, $location, client, repository, pro
     this.$scope.setTouch          = this.setTouch;
     this.$scope.toggleParameters  = this.toggleParameters;
     this.$scope.copyCode          = this.copyCode.bind(this);
+    this.$scope.othersReady       = this.othersReady.bind(this);
+    this.onKicked                 = this.onKicked.bind(this);
     this.$scope.prizeLabel        = this.prizeLabel;
     this.$scope.nameMaxLength     = Player.prototype.maxLength;
     this.$scope.colorMaxLength    = Player.prototype.colorMaxLength;
@@ -164,6 +166,7 @@ RoomController.prototype.attachEvents = function()
     this.repository.on('room:config:open', this.onConfigOpen);
     this.repository.on('room:launch:start', this.onLaunchStart);
     this.repository.on('room:launch:cancel', this.onLaunchCancel);
+    this.client.on('room:kicked', this.onKicked);
 
     for (var i = this.room.players.items.length - 1; i >= 0; i--) {
         this.room.players.items[i].on('control:change', this.onControlChange);
@@ -187,6 +190,7 @@ RoomController.prototype.detachEvents = function()
     this.repository.off('room:config:open', this.onConfigOpen);
     this.repository.off('room:launch:start', this.onLaunchStart);
     this.repository.off('room:launch:cancel', this.onLaunchCancel);
+    this.client.off('room:kicked', this.onKicked);
 
     if (this.room) {
         for (var i = this.room.players.items.length - 1; i >= 0; i--) {
@@ -208,9 +212,48 @@ RoomController.prototype.goHome = function()
  */
 RoomController.prototype.launch = function()
 {
-    if (this.repository.amIMaster()) {
+    // "Start now!" needs every other player ready (the server checks too);
+    // pressing it during the countdown cancels, as before.
+    if (this.repository.amIMaster() && (this.$scope.launching || this.othersReady())) {
         this.repository.launch();
     }
+};
+
+/**
+ * Every player except the host's own is ready (the host starts instead of
+ * readying).
+ *
+ * @return {Boolean}
+ */
+RoomController.prototype.othersReady = function()
+{
+    if (!this.room) { return false; }
+
+    return this.room.players.items.every(function (player) {
+        return (player.client && player.client.master) || player.ready;
+    });
+};
+
+/**
+ * The host removed us from the room: say so, and go back to the room list.
+ *
+ * @param {Event} e
+ */
+RoomController.prototype.onKicked = function(e)
+{
+    var message = (e && e.detail && e.detail.message) || 'You were removed by the host',
+        old = document.getElementById('kurver-kicked-toast'),
+        toast = document.createElement('div');
+
+    if (old) { old.parentNode.removeChild(old); }
+    toast.id = 'kurver-kicked-toast';
+    toast.textContent = message;
+    toast.style.cssText = 'position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:10000;background:#2a0f14;border:1px solid rgba(255,85,85,0.5);color:#ff8080;padding:12px 20px;border-radius:10px;font-family:Space Grotesk,sans-serif;font-size:14px;';
+    document.body.appendChild(toast);
+    setTimeout(function () { if (toast.parentNode) { toast.parentNode.removeChild(toast); } }, 6000);
+
+    this.goHome();
+    this.applyScope();
 };
 
 /**

@@ -345,7 +345,39 @@ RoomController.prototype.launch = function()
         this.launching = clearTimeout(this.launching);
     }
 
+    // Ready-check: never start while a non-host player isn't ready.
+    if (!this.othersReady()) {
+        this.socketGroup.addEvent('room:launch:cancel');
+        return;
+    }
+
     this.room.newGame();
+};
+
+/**
+ * Every player except the host's own is ready (the host starts instead of
+ * readying). Kurver's ready-check for "Start now!".
+ *
+ * @return {Boolean}
+ */
+RoomController.prototype.othersReady = function()
+{
+    var master = this.roomMaster;
+
+    return this.room.players.items.every(function (player) {
+        return player.client === master || player.ready;
+    });
+};
+
+/**
+ * A countdown already running stops if someone is no longer ready (a player
+ * un-readied, or a new not-ready player joined).
+ */
+RoomController.prototype.checkLaunch = function()
+{
+    if (this.launching && !this.othersReady()) {
+        this.cancelLaunch();
+    }
 };
 
 // Events:
@@ -558,6 +590,8 @@ RoomController.prototype.onReady = function(client, data, callback)
 
         if (this.room.isReady()) {
             this.launch();
+        } else {
+            this.checkLaunch();
         }
     } else {
         callback({success: false, error: 'Player with id "' + data.player + '" not found'});
@@ -573,23 +607,25 @@ RoomController.prototype.onReady = function(client, data, callback)
  */
 RoomController.prototype.onKickVote = function(client, data, callback)
 {
-    if (client.isPlaying()) {
-        var player = this.room.players.getById(data.player);
-
-        if (player) {
-            if (this.isRoomMaster(client)) {
-                this.onKick(player);
-
-                return callback({success: true, kicked: true});
-            } else {
-                var kickVote = this.kickManager.vote(client, player);
-
-                return callback({success: true, kicked: kickVote.hasVote(client)});
-            }
-        }
+    // Only the host can remove players (Kurver's vote-kick for other players
+    // is turned off), and never one of their own.
+    if (!this.isRoomMaster(client)) {
+        return callback({success: false, kicked: false, error: 'Only the host can remove players.'});
     }
 
-    return callback({success: false, kicked: false});
+    var player = this.room.players.getById(data.player);
+
+    if (!player) {
+        return callback({success: false, kicked: false, error: 'Player not found.'});
+    }
+
+    if (player.client === client) {
+        return callback({success: false, kicked: false, error: "You can't remove yourself."});
+    }
+
+    this.onKick(player);
+
+    return callback({success: true, kicked: true});
 };
 
 /**
@@ -687,8 +723,10 @@ RoomController.prototype.onLaunch = function(client)
     if (this.isRoomMaster(client)) {
         if (this.launching) {
             this.cancelLaunch();
-        } else {
+        } else if (this.othersReady()) {
             this.startLaunch();
+        } else {
+            client.addEvent('room:launch:refused', {error: 'Waiting for every player to be ready.'});
         }
     }
 };
@@ -701,6 +739,7 @@ RoomController.prototype.onLaunch = function(client)
 RoomController.prototype.onPlayerJoin = function(data)
 {
     this.socketGroup.addEvent('room:join', {player: data.player.serialize()});
+    this.checkLaunch();
 };
 
 /**
@@ -734,8 +773,21 @@ RoomController.prototype.onGame = function()
  */
 RoomController.prototype.onKick = function(player)
 {
+    var client = player.client;
+
     this.socketGroup.addEvent('room:kick', player.id);
     this.removePlayer(player);
+
+    // Removed by the host: the whole connection leaves the room (all of its
+    // players), is told why, and that account can't join this room again.
+    if (client && client !== this.roomMaster && this.clients.exists(client)) {
+        if (client.userId) {
+            this.room.kickedUserIds = this.room.kickedUserIds || [];
+            if (this.room.kickedUserIds.indexOf(client.userId) < 0) { this.room.kickedUserIds.push(client.userId); }
+        }
+        client.addEvent('room:kicked', {message: 'You were removed by the host'});
+        this.detach(client);
+    }
 };
 
 /**
