@@ -287,7 +287,18 @@ app.post('/admin/mark-paid', async (req, res) => {
     } catch(err) { res.status(500).json({ error: err.message }); }
 });
 
-app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'web/home.html')));
+// Is this tenten.run login (the page's stored handoff) still accepted? 204 yes, 401 no.
+app.get('/auth-check', (req, res) => {
+    res.set('Cache-Control', 'no-store');
+    require('./kurver-money.js').authenticate(req.query.token, req.query.player_id)
+        .then(() => res.status(204).end())
+        .catch(e => res.status(e instanceof require('./kurver-money.js').AuthError ? 401 : 500).end());
+});
+
+// Kurver's own solo/multiplayer chooser (web/home.html) is no longer a
+// destination: players land straight on the multiplayer lobby. Restore with
+// res.sendFile(path.join(__dirname, 'web/home.html')).
+app.get('/', (req, res) => res.redirect(302, '/multiplayer'));
 app.get('/solo', (req, res) => res.sendFile(path.join(__dirname, 'web/solo-info.html')));
 app.get('/solo-game', (req, res) => res.sendFile(path.join(__dirname, 'web/solo.html')));
 app.get('/multiplayer', (req, res) => res.sendFile(path.join(__dirname, 'web/index.html')));

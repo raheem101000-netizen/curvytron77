@@ -49,6 +49,7 @@ function RoomsController($scope, $location, client)
     this.$scope.$parent.profile   = true;
 
     this.attachEvents();
+    this.findSeat();
 }
 
 RoomsController.prototype = Object.create(AbstractController.prototype);
@@ -57,6 +58,25 @@ RoomsController.prototype.constructor = RoomsController;
 /**
  * Attach Events
  */
+RoomsController.prototype.findSeat = function()
+{
+    // Still holding a seat in a match (dropped, closed the page, came back
+    // from tenten.run)? Go straight back to it. Not after this tab handed its
+    // seat to another tab/device.
+    var superseded = false;
+    try { superseded = window.sessionStorage.getItem('kurver_superseded') === '1'; } catch (e) {}
+    if (superseded || !this.client.connected) { return; }
+
+    var controller = this;
+
+    this.client.addEvent('seat:find', null, function (result) {
+        if (result && result.success && result.name && controller.$location.path() === '/') {
+            controller.$location.path('/room/' + encodeURIComponent(result.name));
+            controller.applyScope();
+        }
+    });
+};
+
 RoomsController.prototype.attachEvents = function()
 {
     this.repository.on('room:open', this.requestDigestScope);

@@ -52,7 +52,10 @@
 
         <div class="room-details">
 
-            <div ng-if="hasTouch" class="touch">
+            <div ng-if="autoTouch" class="touch">
+                <h5>📱 Touch controls are on — tap the left or right side of the screen to turn.</h5>
+            </div>
+            <div ng-if="hasTouch && !autoTouch" class="touch">
                 <h5>Are you playing on a smartphone? </h5>
                 <button ng-click="setTouch()" class="btn btn-default">
                     Activate the touch controls!
@@ -115,11 +118,11 @@
                             </button>
                         </td>
                         <td class="col-icon">
-                            <span ng-if="!player.client.active" class="icon inactive icon-clock pull-left"></span>
+                            <span ng-if="!player.client.active || player.client.away" class="icon inactive icon-clock pull-left" title="{{ player.client.away ? 'Reconnecting…' : 'Inactive' }}"></span>
                             <span ng-if="player.isMaster()" class="icon icon-crown pull-left"></span>
                         </td>
                         <td class="col-player">
-                            <p class="player-name">{{ player.name }}</p>
+                            <p class="player-name">{{ player.name }}<span ng-if="player.client.away" style="margin-left:8px;font-size:11px;letter-spacing:1px;color:#ffb020;">RECONNECTING…</span></p>
                         </td>
                         <td class="col-color">
                             <span class="line-color-preview" style="background-color: {{ player.color }};"></span>

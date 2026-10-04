@@ -42,6 +42,7 @@ CurvytronController.prototype.constructor = CurvytronController;
  */
 CurvytronController.prototype.onConnect = function(e)
 {
+    try { window.sessionStorage.removeItem('kurver_reconnects'); } catch (err) {}
     this.$scope.status  = 'online';
     this.$scope.profile = true;
     this.digestScope();
@@ -57,6 +58,35 @@ CurvytronController.prototype.onDisconnect = function(e)
     document.body.classList.remove('game-mode');
     this.$scope.status = 'disconnected';
     this.digestScope();
+    this.scheduleReconnect(false);
+};
+
+/**
+ * Reconnect by reloading the same page (same match URL): the new connection
+ * takes the player's seat back. Backs off 1 s, 2 s, 4 s … up to 15 s; an
+ * expired login goes through tenten.run for a fresh one (index.html).
+ *
+ * @param {Boolean} now
+ */
+CurvytronController.prototype.scheduleReconnect = function(now)
+{
+    if (this.reconnectTimer) {
+        if (!now) { return; }
+        clearTimeout(this.reconnectTimer);
+    }
+
+    var attempts = 0;
+    try { attempts = Number(window.sessionStorage.getItem('kurver_reconnects')) || 0; } catch (err) {}
+
+    this.reconnectTimer = setTimeout(function () {
+        try { window.sessionStorage.setItem('kurver_reconnects', attempts + 1); } catch (err) {}
+        window.onbeforeunload = null;
+        if (window.KurverLogin && window.KurverLogin.reconnect) {
+            window.KurverLogin.reconnect();
+        } else {
+            window.location.reload();
+        }
+    }, now ? 0 : Math.min(15000, 1000 * Math.pow(2, attempts)));
 };
 
 /**
@@ -64,5 +94,5 @@ CurvytronController.prototype.onDisconnect = function(e)
  */
 CurvytronController.prototype.reload = function()
 {
-    this.$window.location.href = '/';
+    this.scheduleReconnect(true);
 };

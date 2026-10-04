@@ -3090,6 +3090,7 @@ function RoomController(room)
     this.removeRoomMaster = this.removeRoomMaster.bind(this);
     this.onPlayersClear   = this.onPlayersClear.bind(this);
     this.launch           = this.launch.bind(this);
+    this.sweep            = this.sweep.bind(this);
 
     this.callbacks = {
         onTalk: function (data) { controller.onTalk(this, data[0], data[1]); },
@@ -3100,6 +3101,7 @@ function RoomController(room)
         onName: function (data) { controller.onName(this, data[0], data[1]); },
         onColor: function (data) { controller.onColor(this, data[0], data[1]); },
         onLeave: function () { controller.onLeave(this); },
+        onDrop: function () { controller.onDrop(this); },
         onActivity: function () { controller.onActivity(this); },
 
         onConfigOpen: function (data) { controller.onConfigOpen(this, data[0], data[1]); },
@@ -3111,6 +3113,10 @@ function RoomController(room)
 
     this.loadRoom();
     this.promptCheckForClose();
+
+    // Seats belong to accounts (same model as FIFA): a dropped connection keeps
+    // its seat and the player can come back to it; presence is checked every 2 s.
+    this.presenceLoop = setInterval(this.sweep, 2000);
 }
 
 RoomController.prototype = Object.create(EventEmitter.prototype);
@@ -3122,6 +3128,18 @@ RoomController.prototype.constructor = RoomController;
  * @type {Number}
  */
 RoomController.prototype.timeToClose = 10000;
+
+/**
+ * Presence (account-owned seats). A player whose connection goes quiet for
+ * awayAfter is shown as away; an away host hands over after hostHandoffAfter;
+ * an away seat is released after seatHold. Overridable for local tests only —
+ * leave the KURVER_* variables unset in production.
+ *
+ * @type {Number}
+ */
+RoomController.prototype.awayAfter        = Number(process.env.KURVER_AWAY_AFTER_MS) || 15000;
+RoomController.prototype.hostHandoffAfter = Number(process.env.KURVER_HOST_HANDOFF_MS) || 60000;
+RoomController.prototype.seatHold         = Number(process.env.KURVER_SEAT_HOLD_MS) || 12 * 60 * 1000;
 
 /**
  * Load room
@@ -3150,6 +3168,10 @@ RoomController.prototype.unloadRoom = function()
     this.kickManager.removeListener('vote:new', this.onVoteNew);
     this.kickManager.removeListener('vote:close', this.onVoteClose);
     this.kickManager.clear();
+
+    if (this.presenceLoop) {
+        this.presenceLoop = clearInterval(this.presenceLoop);
+    }
 };
 
 /**
@@ -3163,6 +3185,10 @@ RoomController.prototype.attach = function(client, callback)
     if (this.clients.add(client)) {
         this.attachEvents(client);
         this.onClientAdd(client);
+        // Coming back to a seat this account already holds: take it over
+        // (before the room is sent, so the player sees their own seat).
+        this.socketGroup.addEvent('client:add', client.id);
+        this.takeOverSeat(client);
         callback({
             success: true,
             room: this.room.serialize(),
@@ -3171,7 +3197,6 @@ RoomController.prototype.attach = function(client, callback)
             messages: this.chat.serialize(100),
             votes: this.kickManager.votes.map(function () { return this.serialize(); }).items
         });
-        this.socketGroup.addEvent('client:add', client.id);
         this.emit('client:add', { room: this.room, client: client});
     } else {
         callback({success: false, error: 'Client ' + client.id + ' already in the room.'});
@@ -3207,7 +3232,9 @@ RoomController.prototype.detach = function(client)
  */
 RoomController.prototype.attachEvents = function(client)
 {
-    client.on('close', this.callbacks.onLeave);
+    // A closed connection is a drop (seat kept), not a leave: 'room:leave' is
+    // the only way to give a seat up yourself.
+    client.on('close', this.callbacks.onDrop);
     client.on('activity', this.callbacks.onActivity);
     client.on('room:leave', this.callbacks.onLeave);
     client.on('room:talk', this.callbacks.onTalk);
@@ -3227,7 +3254,7 @@ RoomController.prototype.attachEvents = function(client)
  */
 RoomController.prototype.detachEvents = function(client)
 {
-    client.removeListener('close', this.callbacks.onLeave);
+    client.removeListener('close', this.callbacks.onDrop);
     client.removeListener('activity', this.callbacks.onActivity);
     client.removeListener('room:leave', this.callbacks.onLeave);
     client.removeListener('room:talk', this.callbacks.onTalk);
@@ -3269,7 +3296,7 @@ RoomController.prototype.nominateRoomMaster = function()
 {
     if (this.clients.isEmpty() || this.roomMaster) { return; }
 
-    var roomMaster = this.clients.match(function () { return this.active && this.isPlaying(); });
+    var roomMaster = this.clients.match(function () { return this.active && !this.away && this.isPlaying(); });
 
     this.setRoomMaster(roomMaster);
 };
@@ -3283,7 +3310,8 @@ RoomController.prototype.setRoomMaster = function(client)
 {
     if (!this.roomMaster && client) {
         this.roomMaster = client;
-        this.roomMaster.on('close', this.removeRoomMaster);
+        // A dropped host keeps the host role while their seat is held (it
+        // passes on after hostHandoffAfter, see sweep()).
         this.roomMaster.on('room:leave', this.removeRoomMaster);
         this.roomMaster.on('room:config:open', this.callbacks.onConfigOpen);
         this.roomMaster.on('room:config:max-score', this.callbacks.onConfigMaxScore);
@@ -3300,7 +3328,17 @@ RoomController.prototype.setRoomMaster = function(client)
 RoomController.prototype.removeRoomMaster = function()
 {
     if (this.roomMaster) {
-        this.roomMaster.removeListener('close', this.removeRoomMaster);
+        this.releaseRoomMaster();
+        this.nominateRoomMaster();
+    }
+};
+
+/**
+ * Drop the current game master without nominating a new one
+ */
+RoomController.prototype.releaseRoomMaster = function()
+{
+    if (this.roomMaster) {
         this.roomMaster.removeListener('room:leave', this.removeRoomMaster);
         this.roomMaster.removeListener('room:config:open', this.callbacks.onConfigOpen);
         this.roomMaster.removeListener('room:config:max-score', this.callbacks.onConfigMaxScore);
@@ -3308,7 +3346,6 @@ RoomController.prototype.removeRoomMaster = function()
         this.roomMaster.removeListener('room:config:bonus', this.callbacks.onConfigBonus);
         this.roomMaster.removeListener('room:launch', this.callbacks.onLaunch);
         this.roomMaster = null;
-        this.nominateRoomMaster();
     }
 };
 
@@ -3426,8 +3463,20 @@ RoomController.prototype.othersReady = function()
     var master = this.roomMaster;
 
     return this.room.players.items.every(function (player) {
-        return player.client === master || player.ready;
+        return player.client === master || (player.ready && !player.client.away);
     });
+};
+
+/**
+ * Names of the players whose connection is currently away
+ *
+ * @return {Array}
+ */
+RoomController.prototype.awayNames = function()
+{
+    return this.room.players.items.filter(function (player) {
+        return player.client && player.client.away;
+    }).map(function (player) { return player.name; });
 };
 
 /**
@@ -3441,6 +3490,127 @@ RoomController.prototype.checkLaunch = function()
     }
 };
 
+/**
+ * Does this account hold a seat (a player) in the room?
+ *
+ * @param {Number} userId
+ *
+ * @return {Boolean}
+ */
+RoomController.prototype.hasSeat = function(userId)
+{
+    return userId ? this.room.players.match(function () { return this.client && this.client.userId === userId; }) !== null : false;
+};
+
+/**
+ * The account behind a new connection already has a seat here (it dropped,
+ * reloaded, or opened the match again): the new connection takes the seat
+ * over — same player, same ready state, host role kept — and the old
+ * connection is retired. Mirrors FIFA's account-owned seats.
+ *
+ * @param {SocketClient} client
+ */
+RoomController.prototype.takeOverSeat = function(client)
+{
+    if (!client.userId) { return; }
+
+    var old = this.clients.match(function () { return this !== client && this.userId === client.userId; });
+
+    if (!old) { return; }
+
+    var wasMaster = this.roomMaster === old,
+        player, i;
+
+    if (this.room.game) {
+        // Mid-game the old connection is out of this game, exactly as a
+        // disconnect always was; the seat comes back for the next one.
+        this.room.game.controller.detach(old);
+    }
+
+    if (wasMaster) {
+        this.releaseRoomMaster();
+    }
+
+    this.kickManager.removeClient(old);
+
+    for (i = old.players.items.length - 1; i >= 0; i--) {
+        player = old.players.items[i];
+        old.players.remove(player);
+        player.client = client;
+        client.players.add(player);
+        this.socketGroup.addEvent('player:client', {player: player.id, client: client.id});
+    }
+
+    this.clients.remove(old);
+    this.detachEvents(old);
+    this.socketGroup.addEvent('client:remove', old.id);
+
+    if (old.connected) {
+        old.addEvent('room:superseded', {message: 'You opened this match somewhere else.'});
+    }
+
+    if (wasMaster) {
+        this.setRoomMaster(client);
+    } else {
+        this.nominateRoomMaster();
+    }
+
+    console.info('Account %s took its seat back in room "%s".', client.userId, this.room.name);
+};
+
+/**
+ * Show a connection as away / back
+ *
+ * @param {SocketClient} client
+ * @param {Boolean} away
+ */
+RoomController.prototype.setAway = function(client, away)
+{
+    if ((client.away ? true : false) === away) { return; }
+
+    client.away      = away;
+    client.awaySince = away ? Date.now() : null;
+
+    this.socketGroup.addEvent('client:away', {client: client.id, away: away});
+
+    if (away) {
+        this.checkLaunch();
+    }
+};
+
+/**
+ * Presence check (every 2 s): quiet connections show as away, an away host
+ * hands over, an away seat is released once the hold runs out.
+ */
+RoomController.prototype.sweep = function()
+{
+    var now = Date.now(),
+        clients = this.clients.items.slice(),
+        client, quiet, i;
+
+    for (i = clients.length - 1; i >= 0; i--) {
+        client = clients[i];
+
+        if (!client.userId || !this.clients.exists(client)) { continue; }
+
+        quiet = !client.connected || (now - (client.lastSeen || 0)) > this.awayAfter;
+
+        if (quiet !== (client.away ? true : false)) {
+            this.setAway(client, quiet);
+        }
+
+        if (client.away && now - client.awaySince > this.seatHold) {
+            console.info('Seat of account %s released in room "%s".', client.userId, this.room.name);
+            this.detach(client);
+        }
+    }
+
+    if (this.roomMaster && this.roomMaster.away && now - this.roomMaster.awaySince > this.hostHandoffAfter &&
+        this.clients.match(function () { return !this.away && this.active && this.isPlaying(); })) {
+        this.removeRoomMaster();
+    }
+};
+
 // Events:
 
 /**
@@ -3451,6 +3621,27 @@ RoomController.prototype.checkLaunch = function()
 RoomController.prototype.onLeave = function(client)
 {
     this.detach(client);
+};
+
+/**
+ * On client connection closed: a player with a seat keeps it (shown as away)
+ * and can come back; anyone else just leaves.
+ *
+ * @param {SocketClient} client
+ */
+RoomController.prototype.onDrop = function(client)
+{
+    if (!client.userId || !client.isPlaying() || !this.clients.exists(client)) {
+        return this.detach(client);
+    }
+
+    if (this.room.game) {
+        // Same as before for the game in progress: the dropped player's
+        // line is out of this game.
+        this.room.game.controller.detach(client);
+    }
+
+    this.setAway(client, true);
 };
 
 /**
@@ -3644,7 +3835,13 @@ RoomController.prototype.onReady = function(client, data, callback)
     var player = client.players.getById(data.player);
 
     if (player) {
-        player.toggleReady();
+        // Ready is one-way for everyone but the host: the first press sets it
+        // (a repeat press can't un-ready), and it is always re-broadcast.
+        if (client === this.roomMaster) {
+            player.toggleReady();
+        } else {
+            player.toggleReady(true);
+        }
 
         callback({success: true, ready: player.ready});
         this.socketGroup.addEvent('player:ready', { player: player.id, ready: player.ready });
@@ -3787,7 +3984,8 @@ RoomController.prototype.onLaunch = function(client)
         } else if (this.othersReady()) {
             this.startLaunch();
         } else {
-            client.addEvent('room:launch:refused', {error: 'Waiting for every player to be ready.'});
+            var away = this.awayNames();
+            client.addEvent('room:launch:refused', {error: away.length ? 'Waiting for ' + away.join(', ') + ' to come back.' : 'Waiting for every player to be ready.'});
         }
     }
 };
@@ -3813,7 +4011,7 @@ RoomController.prototype.onPlayerLeave = function(data)
     this.socketGroup.addEvent('room:leave', {player: data.player.id});
 
     if (this.room.isReady()) {
-        this.room.newGame();
+        this.launch();
     }
 };
 
@@ -3895,7 +4093,8 @@ function RoomsController(repository)
         emitAllRooms: function () { controller.emitAllRooms(this); },
         onCreateRoom: function (data) { controller.onCreateRoom(this, data[0], data[1]); },
         onJoinRoom: function (data) { controller.onJoinRoom(this, data[0], data[1]); },
-        onFindByCode: function (data) { controller.onFindByCode(this, data[0], data[1]); }
+        onFindByCode: function (data) { controller.onFindByCode(this, data[0], data[1]); },
+        onFindSeat: function (data) { controller.onFindSeat(this, data[0], data[1]); }
     };
 
     this.repository.on('room:open', this.onRoomOpen);
@@ -3941,6 +4140,7 @@ RoomsController.prototype.attachEvents = function(client)
     client.on('room:create', this.callbacks.onCreateRoom);
     client.on('room:join', this.callbacks.onJoinRoom);
     client.on('room:code', this.callbacks.onFindByCode);
+    client.on('seat:find', this.callbacks.onFindSeat);
 };
 
 /**
@@ -3955,6 +4155,7 @@ RoomsController.prototype.detachEvents = function(client)
     client.removeListener('room:create', this.callbacks.onCreateRoom);
     client.removeListener('room:join', this.callbacks.onJoinRoom);
     client.removeListener('room:code', this.callbacks.onFindByCode);
+    client.removeListener('seat:find', this.callbacks.onFindSeat);
 };
 
 /**
@@ -4014,6 +4215,23 @@ RoomsController.prototype.onCreateRoom = function(client, data, callback)
 RoomsController.prototype.passwordMaxLength = 20;
 
 /**
+ * Where does this account hold a seat? The room list asks on load so a player
+ * who dropped (or closed the page) goes straight back to their match.
+ *
+ * @param {SocketClient} client
+ * @param {Object} data
+ * @param {Function} callback
+ */
+RoomsController.prototype.onFindSeat = function(client, data, callback)
+{
+    var room = client.userId ? this.repository.rooms.match(function () { return this.controller && this.controller.hasSeat(client.userId); }) : null;
+
+    if (typeof(callback) === 'function') {
+        callback(room ? {success: true, name: room.name} : {success: false});
+    }
+};
+
+/**
  * Join by code: find the match a code belongs to. Same rules as FIFA/Puz —
  * unknown code, a match that has already started, or a wrong password are
  * refused. On success the client goes to the room (which checks the
@@ -4033,6 +4251,10 @@ RoomsController.prototype.onFindByCode = function(client, data, callback)
 
     if (!room) {
         return callback({success: false, error: 'No match with that code. Check it, or the match may have closed.'});
+    }
+
+    if (room.controller && room.controller.hasSeat(client.userId)) {
+        return callback({success: true, name: room.name, open: room.config.open});
     }
 
     if (room.game) {
@@ -4067,7 +4289,8 @@ RoomsController.prototype.onJoinRoom = function(client, data, callback)
 
     var password = typeof(data.password) !== 'undefined' ? data.password : null;
 
-    if (!room.config.allow(password)) {
+    // Coming back to your own seat needs no password.
+    if (!room.config.allow(password) && !room.controller.hasSeat(client.userId)) {
         return callback({success: false, error: 'Wrong password.'});
     }
 
@@ -4758,6 +4981,15 @@ Server.prototype.onSocketConnection = function(socket, ip, auth)
     var client = new SocketClient(socket, 1, ip);
     client.userId      = auth ? auth.userId : null;      // real tenten.run account
     client.displayName = auth ? auth.displayName : null;
+
+    // Presence heartbeat: the page sends 'hb' every 5 s and gets an answer, so
+    // both sides notice a dead connection (phone asleep, network gone) even when
+    // the socket never reports closing. Rooms read client.lastSeen.
+    client.lastSeen = Date.now();
+    client.on('hb', function (data) {
+        client.lastSeen = Date.now();
+        if (data && typeof(data[1]) === 'function') { data[1]({t: client.lastSeen}); }
+    });
     this.clients.add(client);
 
     client.on('close', this.onSocketDisconnection);

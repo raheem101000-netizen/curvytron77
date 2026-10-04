@@ -30,6 +30,8 @@ function RoomRepository(client)
     this.onKick           = this.onKick.bind(this);
     this.onVote           = this.onVote.bind(this);
     this.onClientActivity = this.onClientActivity.bind(this);
+    this.onClientAway     = this.onClientAway.bind(this);
+    this.onPlayerClient   = this.onPlayerClient.bind(this);
     this.forwardEvent     = this.forwardEvent.bind(this);
 }
 
@@ -60,6 +62,8 @@ RoomRepository.prototype.attachEvents = function()
     this.client.on('vote:new', this.onVote);
     this.client.on('vote:close', this.onVote);
     this.client.on('client:activity', this.onClientActivity);
+    this.client.on('client:away', this.onClientAway);
+    this.client.on('player:client', this.onPlayerClient);
 };
 
 /**
@@ -86,6 +90,8 @@ RoomRepository.prototype.detachEvents = function()
     this.client.off('vote:new', this.onVote);
     this.client.off('vote:close', this.onVote);
     this.client.off('client:activity', this.onClientActivity);
+    this.client.off('client:away', this.onClientAway);
+    this.client.off('player:client', this.onPlayerClient);
 };
 
 /**
@@ -479,6 +485,44 @@ RoomRepository.prototype.onClientActivity = function(e)
     if (client) {
         client.active = e.detail.active;
         this.emit('client:activity', {client: client, active: client.active});
+    }
+};
+
+/**
+ * On client away / back (connection dropped, seat kept)
+ *
+ * @param {Event} e
+ */
+RoomRepository.prototype.onClientAway = function(e)
+{
+    var client = this.clients.getById(e.detail.client);
+
+    if (client) {
+        client.away = e.detail.away;
+        this.emit('client:away', {client: client, away: client.away});
+    }
+};
+
+/**
+ * A player's seat moved to a new connection (that player came back)
+ *
+ * @param {Event} e
+ */
+RoomRepository.prototype.onPlayerClient = function(e)
+{
+    if (!this.room) { return; }
+
+    var player = this.room.players.getById(e.detail.player),
+        client = this.clients.getById(e.detail.client);
+
+    if (!client) {
+        client = new Client(e.detail.client);
+        this.clients.add(client);
+    }
+
+    if (player) {
+        player.client = client;
+        this.emit('player:client', {player: player});
     }
 };
 

@@ -29,7 +29,9 @@ function RoomController($scope, $routeParams, $location, client, repository, pro
     this.password       = typeof(search.password) !== 'undefined' ? search.password : null;
     this.repository     = repository;
     this.controlSynchro = false;
-    this.useTouch       = false;
+    // Phones and tablets get the touch controls automatically.
+    this.autoTouch      = this.hasTouch && RoomController.isTouchDevice();
+    this.useTouch       = this.autoTouch;
     this.launchInterval = null;
 
     // Binding:
@@ -56,6 +58,8 @@ function RoomController($scope, $routeParams, $location, client, repository, pro
     this.onLaunchCancel   = this.onLaunchCancel.bind(this);
     this.launch           = this.launch.bind(this);
     this.start            = this.start.bind(this);
+    this.onPlayerClient   = this.onPlayerClient.bind(this);
+    this.onSuperseded     = this.onSuperseded.bind(this);
 
     this.$scope.$on('$destroy', this.leaveRoom);
 
@@ -76,6 +80,7 @@ function RoomController($scope, $routeParams, $location, client, repository, pro
     this.$scope.nameMaxLength     = Player.prototype.maxLength;
     this.$scope.colorMaxLength    = Player.prototype.colorMaxLength;
     this.$scope.hasTouch          = this.hasTouch;
+    this.$scope.autoTouch         = this.autoTouch;
     this.$scope.master            = this.repository.amIMaster();
     this.$scope.displayParameters = false;
     this.$scope.$parent.profile   = true;
@@ -98,6 +103,22 @@ function RoomController($scope, $routeParams, $location, client, repository, pro
 
 RoomController.prototype = Object.create(AbstractController.prototype);
 RoomController.prototype.constructor = RoomController;
+
+/**
+ * Phone / tablet (touch is the main input), not a laptop that happens to
+ * have a touchscreen.
+ *
+ * @return {Boolean}
+ */
+RoomController.isTouchDevice = function()
+{
+    var ua = navigator.userAgent || '';
+
+    if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) { return true; }
+    if (/Android|iPhone|iPad|iPod|Mobile/i.test(ua)) { return true; }
+
+    return /Macintosh/.test(ua) && navigator.maxTouchPoints > 1;
+};
 
 /**
  * Join room and load scope
@@ -124,10 +145,14 @@ RoomController.prototype.onJoined = function(result)
         this.$scope.room = this.room;
 
         this.attachEvents();
+        this.adoptOwnPlayers();
         this.addProfileUser();
         this.requestDigestScope();
     } else {
         console.error('Could not join room %s: %s', result.name, result.error);
+        if (/^Unknown room/.test(result.error || '')) {
+            this.showToast('That match is no longer open.');
+        }
         this.goHome();
         this.applyScope();
     }
@@ -166,7 +191,10 @@ RoomController.prototype.attachEvents = function()
     this.repository.on('room:config:open', this.onConfigOpen);
     this.repository.on('room:launch:start', this.onLaunchStart);
     this.repository.on('room:launch:cancel', this.onLaunchCancel);
+    this.repository.on('client:away', this.requestDigestScope);
+    this.repository.on('player:client', this.onPlayerClient);
     this.client.on('room:kicked', this.onKicked);
+    this.client.on('room:superseded', this.onSuperseded);
 
     for (var i = this.room.players.items.length - 1; i >= 0; i--) {
         this.room.players.items[i].on('control:change', this.onControlChange);
@@ -190,7 +218,10 @@ RoomController.prototype.detachEvents = function()
     this.repository.off('room:config:open', this.onConfigOpen);
     this.repository.off('room:launch:start', this.onLaunchStart);
     this.repository.off('room:launch:cancel', this.onLaunchCancel);
+    this.repository.off('client:away', this.requestDigestScope);
+    this.repository.off('player:client', this.onPlayerClient);
     this.client.off('room:kicked', this.onKicked);
+    this.client.off('room:superseded', this.onSuperseded);
 
     if (this.room) {
         for (var i = this.room.players.items.length - 1; i >= 0; i--) {
@@ -230,7 +261,7 @@ RoomController.prototype.othersReady = function()
     if (!this.room) { return false; }
 
     return this.room.players.items.every(function (player) {
-        return (player.client && player.client.master) || player.ready;
+        return (player.client && player.client.master) || (player.ready && !(player.client && player.client.away));
     });
 };
 
@@ -241,8 +272,34 @@ RoomController.prototype.othersReady = function()
  */
 RoomController.prototype.onKicked = function(e)
 {
-    var message = (e && e.detail && e.detail.message) || 'You were removed by the host',
-        old = document.getElementById('kurver-kicked-toast'),
+    this.showToast((e && e.detail && e.detail.message) || 'You were removed by the host');
+    this.goHome();
+    this.applyScope();
+};
+
+/**
+ * This seat was taken over by the same account somewhere else (another tab
+ * or device): this page steps back to the room list and stays there.
+ *
+ * @param {Event} e
+ */
+RoomController.prototype.onSuperseded = function(e)
+{
+    try { window.sessionStorage.setItem('kurver_superseded', '1'); } catch (err) {}
+    this.showToast((e && e.detail && e.detail.message) || 'You opened this match somewhere else.');
+    this.room = null;
+    this.goHome();
+    this.applyScope();
+};
+
+/**
+ * Short message at the top of the screen
+ *
+ * @param {String} message
+ */
+RoomController.prototype.showToast = function(message)
+{
+    var old = document.getElementById('kurver-kicked-toast'),
         toast = document.createElement('div');
 
     if (old) { old.parentNode.removeChild(old); }
@@ -251,9 +308,6 @@ RoomController.prototype.onKicked = function(e)
     toast.style.cssText = 'position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:10000;background:#2a0f14;border:1px solid rgba(255,85,85,0.5);color:#ff8080;padding:12px 20px;border-radius:10px;font-family:Space Grotesk,sans-serif;font-size:14px;';
     document.body.appendChild(toast);
     setTimeout(function () { if (toast.parentNode) { toast.parentNode.removeChild(toast); } }, 6000);
-
-    this.goHome();
-    this.applyScope();
 };
 
 /**
@@ -335,24 +389,79 @@ RoomController.prototype.onJoin = function(e)
 
     if (player.client.id === this.client.id) {
         player.on('control:change', this.onControlChange);
-        player.setLocal(true);
-
-        player.profile = this.profile.name === player.name;
-
-        this.updateCurrentMessage();
-
-        if (player.profile) {
-            this.setProfileControls(player);
-        }
-
-        if (this.useTouch) {
-            player.setTouch();
-        }
+        this.setupLocalPlayer(player);
     } else {
         this.notifier.notify('New player joined!');
     }
 
     this.requestDigestScope();
+};
+
+/**
+ * Our own player: local controls, profile, touch
+ *
+ * @param {Player} player
+ */
+RoomController.prototype.setupLocalPlayer = function(player)
+{
+    player.setLocal(true);
+
+    player.profile = this.profile.name === player.name;
+
+    this.updateCurrentMessage();
+
+    if (player.profile) {
+        this.setProfileControls(player);
+    }
+
+    if (this.useTouch) {
+        this.applyTouch(player);
+    }
+};
+
+/**
+ * Back in the room after a reconnect: the seat (player) that came with the
+ * room is ours.
+ */
+RoomController.prototype.adoptOwnPlayers = function()
+{
+    for (var player, i = this.room.players.items.length - 1; i >= 0; i--) {
+        player = this.room.players.items[i];
+        if (!player.local && player.client && player.client.id === this.client.id) {
+            this.setupLocalPlayer(player);
+        }
+    }
+};
+
+/**
+ * A player moved to a new connection (they came back)
+ *
+ * @param {Event} e
+ */
+RoomController.prototype.onPlayerClient = function(e)
+{
+    var player = e.detail.player;
+
+    if (!player.local && player.client && player.client.id === this.client.id) {
+        this.setupLocalPlayer(player);
+    }
+
+    this.requestDigestScope();
+};
+
+/**
+ * Touch controls for one player, without saving them over the keyboard
+ * controls in the profile.
+ *
+ * @param {Player} player
+ */
+RoomController.prototype.applyTouch = function(player)
+{
+    var synchro = this.controlSynchro;
+
+    this.controlSynchro = true;
+    player.setTouch();
+    this.controlSynchro = synchro;
 };
 
 /**
@@ -422,6 +531,9 @@ RoomController.prototype.setReady = function(player)
 {
     if (!player.local) { return; }
 
+    // One-way for players (the host starts instead): already ready → nothing to do.
+    if (player.ready && !this.repository.amIMaster()) { return; }
+
     this.repository.setReady(
         player.id,
         function (result) {
@@ -444,7 +556,7 @@ RoomController.prototype.setTouch = function()
     var players = this.room.getLocalPlayers();
 
     for (var i = players.items.length - 1; i >= 0; i--) {
-        players.items[i].setTouch();
+        this.applyTouch(players.items[i]);
     }
 };
 
@@ -469,6 +581,8 @@ RoomController.prototype.start = function(e)
  */
 RoomController.prototype.addProfileUser = function()
 {
+    if (!this.room.getLocalPlayers().isEmpty()) { return; }
+
     if (this.room.isNameAvailable(this.profile.name)) {
         this.profile.on('change', this.updateProfile);
         this.addPlayer(this.profile.name, this.profile.color);

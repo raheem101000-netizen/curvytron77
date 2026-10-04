@@ -23,7 +23,8 @@ function RoomsController(repository)
         emitAllRooms: function () { controller.emitAllRooms(this); },
         onCreateRoom: function (data) { controller.onCreateRoom(this, data[0], data[1]); },
         onJoinRoom: function (data) { controller.onJoinRoom(this, data[0], data[1]); },
-        onFindByCode: function (data) { controller.onFindByCode(this, data[0], data[1]); }
+        onFindByCode: function (data) { controller.onFindByCode(this, data[0], data[1]); },
+        onFindSeat: function (data) { controller.onFindSeat(this, data[0], data[1]); }
     };
 
     this.repository.on('room:open', this.onRoomOpen);
@@ -69,6 +70,7 @@ RoomsController.prototype.attachEvents = function(client)
     client.on('room:create', this.callbacks.onCreateRoom);
     client.on('room:join', this.callbacks.onJoinRoom);
     client.on('room:code', this.callbacks.onFindByCode);
+    client.on('seat:find', this.callbacks.onFindSeat);
 };
 
 /**
@@ -83,6 +85,7 @@ RoomsController.prototype.detachEvents = function(client)
     client.removeListener('room:create', this.callbacks.onCreateRoom);
     client.removeListener('room:join', this.callbacks.onJoinRoom);
     client.removeListener('room:code', this.callbacks.onFindByCode);
+    client.removeListener('seat:find', this.callbacks.onFindSeat);
 };
 
 /**
@@ -142,6 +145,23 @@ RoomsController.prototype.onCreateRoom = function(client, data, callback)
 RoomsController.prototype.passwordMaxLength = 20;
 
 /**
+ * Where does this account hold a seat? The room list asks on load so a player
+ * who dropped (or closed the page) goes straight back to their match.
+ *
+ * @param {SocketClient} client
+ * @param {Object} data
+ * @param {Function} callback
+ */
+RoomsController.prototype.onFindSeat = function(client, data, callback)
+{
+    var room = client.userId ? this.repository.rooms.match(function () { return this.controller && this.controller.hasSeat(client.userId); }) : null;
+
+    if (typeof(callback) === 'function') {
+        callback(room ? {success: true, name: room.name} : {success: false});
+    }
+};
+
+/**
  * Join by code: find the match a code belongs to. Same rules as FIFA/Puz —
  * unknown code, a match that has already started, or a wrong password are
  * refused. On success the client goes to the room (which checks the
@@ -161,6 +181,10 @@ RoomsController.prototype.onFindByCode = function(client, data, callback)
 
     if (!room) {
         return callback({success: false, error: 'No match with that code. Check it, or the match may have closed.'});
+    }
+
+    if (room.controller && room.controller.hasSeat(client.userId)) {
+        return callback({success: true, name: room.name, open: room.config.open});
     }
 
     if (room.game) {
@@ -195,7 +219,8 @@ RoomsController.prototype.onJoinRoom = function(client, data, callback)
 
     var password = typeof(data.password) !== 'undefined' ? data.password : null;
 
-    if (!room.config.allow(password)) {
+    // Coming back to your own seat needs no password.
+    if (!room.config.allow(password) && !room.controller.hasSeat(client.userId)) {
         return callback({success: false, error: 'Wrong password.'});
     }
 

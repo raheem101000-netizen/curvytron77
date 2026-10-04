@@ -85,6 +85,15 @@ Server.prototype.onSocketConnection = function(socket, ip, auth)
     var client = new SocketClient(socket, 1, ip);
     client.userId      = auth ? auth.userId : null;      // real tenten.run account
     client.displayName = auth ? auth.displayName : null;
+
+    // Presence heartbeat: the page sends 'hb' every 5 s and gets an answer, so
+    // both sides notice a dead connection (phone asleep, network gone) even when
+    // the socket never reports closing. Rooms read client.lastSeen.
+    client.lastSeen = Date.now();
+    client.on('hb', function (data) {
+        client.lastSeen = Date.now();
+        if (data && typeof(data[1]) === 'function') { data[1]({t: client.lastSeen}); }
+    });
     this.clients.add(client);
 
     client.on('close', this.onSocketDisconnection);

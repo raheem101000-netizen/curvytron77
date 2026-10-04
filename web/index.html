@@ -164,8 +164,8 @@ section.room label {
 
         <div id="error" ng-if="status === 'disconnected'" class="container text-center">
             <section class="centered">
-                <h3>Something went wrong :(</h3>
-                <p>You are not connected to the server.</p>
+                <h3>Reconnecting…</h3>
+                <p>The connection dropped. Your seat in the match is kept for a few minutes.</p>
                 <button ng-click="reload()" class="btn btn-default">
                     Try again now!
                 </button>
@@ -175,15 +175,28 @@ section.room label {
         <script>
 /* tenten.run login handoff — runs before the game app boots.
    The homepage's Kurver PLAY button lands here as /multiplayer#token=…&player_id=…&name=…
-   (a fragment, so it never reaches server logs). Keep it in sessionStorage for
-   this tab (the game's socket sends it on connect), put the account name into
-   the player profile, and hand the hash back to the app's router. No login →
-   a gate that sends the player to log in on tenten.run. */
+   (a fragment, so it never reaches server logs). The login is kept for this tab
+   (sessionStorage — the game's socket sends it on connect) AND on this device
+   (localStorage, while the server still accepts it: 12 h), so a new tab, a
+   reload or coming back later doesn't ask again. No usable login → straight to
+   tenten.run/?play=kurver, which sends a logged-in account right back with a
+   fresh one; only a logged-out player ends up at the tenten.run login. */
 (function(){
+  var TENTEN = 'https://www.tenten.run';
+  var MAX_AGE = 11 * 3600 * 1000;
+  function store(a){
+    try { sessionStorage.setItem('kurver_auth', JSON.stringify(a)); } catch(e) {}
+    try { localStorage.setItem('kurver_auth', JSON.stringify(a)); } catch(e) {}
+  }
+  function forget(){
+    try { sessionStorage.removeItem('kurver_auth'); } catch(e) {}
+    try { localStorage.removeItem('kurver_auth'); } catch(e) {}
+  }
   var h = new URLSearchParams(location.hash.replace(/^#\/?/, ''));
   if (h.get('token') && h.get('player_id')) {
-    var a = { token: h.get('token'), playerId: Number(h.get('player_id')), name: h.get('name') || '' };
-    try { sessionStorage.setItem('kurver_auth', JSON.stringify(a)); } catch(e) {}
+    var a = { token: h.get('token'), playerId: Number(h.get('player_id')), name: h.get('name') || '', savedAt: Date.now() };
+    store(a);
+    try { localStorage.removeItem('kurver_login_bounce'); sessionStorage.removeItem('kurver_superseded'); } catch(e) {}
     try {
       var prof = JSON.parse(localStorage.getItem('PROFILE') || '{}');
       if (a.name) { prof.name = a.name; localStorage.setItem('PROFILE', JSON.stringify(prof)); }
@@ -192,13 +205,66 @@ section.room label {
   }
   var auth = null;
   try { auth = JSON.parse(sessionStorage.getItem('kurver_auth')); } catch(e) {}
-  window._kurverAuth = auth;
   if (!auth) {
-    document.addEventListener('DOMContentLoaded', function(){
-      var g = document.getElementById('kurver-login-gate');
-      if (g) g.style.display = 'flex';
-    });
+    try { auth = JSON.parse(localStorage.getItem('kurver_auth')); } catch(e) {}
+    if (auth && !(auth.savedAt && Date.now() - auth.savedAt < MAX_AGE)) { auth = null; }
+    if (auth) { try { sessionStorage.setItem('kurver_auth', JSON.stringify(auth)); } catch(e) {} }
   }
+  window._kurverAuth = auth;
+
+  function showGate(){
+    var show = function(){ var g = document.getElementById('kurver-login-gate'); if (g) { g.style.display = 'flex'; } };
+    if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', show); } else { show(); }
+  }
+  // Get a fresh login from tenten.run. Guarded so it can never bounce in a loop:
+  // a second try within a minute shows the gate instead.
+  function login(){
+    var last = 0;
+    try { last = Number(localStorage.getItem('kurver_login_bounce')) || 0; } catch(e) {}
+    if (Date.now() - last < 60000) { showGate(); return; }
+    try { localStorage.setItem('kurver_login_bounce', String(Date.now())); } catch(e) {}
+    forget();
+    window.onbeforeunload = null;
+    location.replace(TENTEN + '/?play=kurver');
+  }
+  window.KurverLogin = {
+    login: login,
+    // Called by the app after the connection dropped: reload the same page
+    // (the new connection takes the seat back) — unless the login itself ran
+    // out, then refresh it via tenten.run first.
+    reconnect: function(){
+      var a = window._kurverAuth;
+      if (!a || !a.token) { return login(); }
+      fetch('/auth-check?token=' + encodeURIComponent(a.token) + '&player_id=' + encodeURIComponent(a.playerId), { cache: 'no-store' })
+        .then(function(r){ if (r.status === 401) { login(); } else { location.reload(); } })
+        .catch(function(){ location.reload(); });
+    }
+  };
+  if (!auth) { login(); }
+})();
+
+/* Back button, two levels: inside a match (room or game) it goes back to the
+   Kurver lobby (the match list); on the lobby it leaves Kurver for the
+   tenten.run multiplayer games. Kurver's own solo/multiplayer chooser page is
+   never in the way. */
+(function(){
+  var TENTEN_MULTIPLAYER = 'https://www.tenten.run/#multiplayer';
+  function inMatch(){ return /^#\/(room|game)\//.test(location.hash); }
+  function update(){
+    var a = document.getElementById('tenten-back');
+    if (!a) { return; }
+    if (inMatch()) { a.textContent = '← LOBBY'; a.href = '#/'; }
+    else { a.textContent = '← TENTEN'; a.href = TENTEN_MULTIPLAYER; }
+  }
+  document.addEventListener('click', function(e){
+    var a = e.target && e.target.closest ? e.target.closest('#tenten-back') : null;
+    if (!a || !inMatch()) { return; }
+    e.preventDefault();
+    location.hash = '#/';
+  }, true);
+  window.addEventListener('hashchange', update);
+  document.addEventListener('DOMContentLoaded', update);
+  update();
 })();
 
 /* Win result: the server credits the winner's tenten.run balance and sends

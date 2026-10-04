@@ -76,11 +76,35 @@ Player.prototype.getMapping = function()
  */
 Player.prototype.setTouch = function()
 {
-    var touch = document.createTouch(window, window, new Date().getTime(), 0, 0, 0, 0);
+    var touch = Player.createTouch();
+
+    if (!touch) { return false; }
 
     for (var i = this.controls.length - 1; i >= 0; i--) {
         this.controls[i].mappers.getById('touch').setValue(touch);
     }
+
+    return true;
+};
+
+/**
+ * A Touch to bind the touch controls to (left half / right half of the
+ * screen). document.createTouch is gone from current browsers, so fall back
+ * to the Touch constructor, then to a bare Touch instance.
+ *
+ * @return {Touch|null}
+ */
+Player.createTouch = function()
+{
+    try {
+        if (typeof(document.createTouch) === 'function') {
+            return document.createTouch(window, window, new Date().getTime(), 0, 0, 0, 0);
+        }
+    } catch (e) {}
+
+    try { return new Touch({identifier: new Date().getTime(), target: document.body}); } catch (e) {}
+
+    return typeof(Touch) !== 'undefined' ? Object.create(Touch.prototype) : null;
 };
 
 /**

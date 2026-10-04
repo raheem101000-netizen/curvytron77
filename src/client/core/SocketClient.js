@@ -34,6 +34,67 @@ SocketClient.prototype = Object.create(BaseSocketClient.prototype);
 SocketClient.prototype.constructor = SocketClient;
 
 /**
+ * Heartbeat: every 5 s ask the server for an answer. No answer for 15 s means
+ * the connection is dead even if the socket never said so (phone asleep,
+ * network switch) — close it, which starts the reconnection.
+ *
+ * @type {Number}
+ */
+SocketClient.prototype.heartbeatInterval = 5000;
+SocketClient.prototype.heartbeatTimeout  = 15000;
+
+/**
+ * Start the heartbeat
+ */
+SocketClient.prototype.startHeartbeat = function()
+{
+    var client = this;
+
+    this.stopHeartbeat();
+    this.lastAck   = new Date().getTime();
+    this.heartbeat = setInterval(function () { client.beat(); }, this.heartbeatInterval);
+
+    if (!this.onVisible) {
+        this.onVisible = function () {
+            if (document.visibilityState !== 'hidden') { client.beat(); }
+        };
+        document.addEventListener('visibilitychange', this.onVisible);
+        window.addEventListener('pageshow', this.onVisible);
+        window.addEventListener('online', this.onVisible);
+    }
+};
+
+/**
+ * Stop the heartbeat
+ */
+SocketClient.prototype.stopHeartbeat = function()
+{
+    if (this.heartbeat) {
+        this.heartbeat = clearInterval(this.heartbeat);
+    }
+};
+
+/**
+ * One beat
+ */
+SocketClient.prototype.beat = function()
+{
+    if (!this.connected) { return; }
+
+    var client = this;
+
+    if (new Date().getTime() - this.lastAck > this.heartbeatTimeout) {
+        console.info('No answer from the server: reconnecting.');
+        this.stopHeartbeat();
+        try { this.socket.close(); } catch (e) {}
+        this.onClose();
+        return;
+    }
+
+    this.addEvent('hb', null, function () { client.lastAck = new Date().getTime(); });
+};
+
+/**
  * On socket connection
  *
  * @param {Socket} socket
@@ -57,6 +118,7 @@ SocketClient.prototype.onConnection = function(id)
     this.connected = true;
 
     this.start();
+    this.startHeartbeat();
     this.emit('connected');
 };
 
@@ -73,6 +135,7 @@ SocketClient.prototype.onClose = function(e)
     this.id        = null;
 
     this.stop();
+    this.stopHeartbeat();
 
     this.emit('disconnected');
 };
