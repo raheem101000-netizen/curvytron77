@@ -522,7 +522,16 @@ GameController.prototype.onEnd = function(data)
     // Auto-credit replaces the old "$8 — claim by PayPal" flow: the winner's
     // tenten.run account is credited the prize frozen at game start, once.
     var game = this.game,
-        gameWinner = game.gameWinner;
+        gameWinner = game.gameWinner,
+        room = game.room;
+
+    // Rematch is offered once the result is decided and its credit is done.
+    var offerRematch = function () {
+        // Deferred: the room closes this game right after this handler.
+        setTimeout(function () {
+            if (room && room.controller && room.controller.offerRematch) { room.controller.offerRematch(); }
+        }, 0);
+    };
 
     if (gameWinner) {
         var winnerSocket = null,
@@ -550,10 +559,14 @@ GameController.prototype.onEnd = function(data)
                 loserUserIds: game.startedUserIds.filter(function (id) { return id !== winnerUserId; }),
                 amount: game.prizeDollars,
                 startedPlayers: game.startedUserIds.length
-            }).then(tell);
+            }).then(function (state) { tell(state); offerRematch(); });
         } else if (winnerUserId) {
-            setTimeout(function () { tell({ status: 'none' }); }, 300);
+            setTimeout(function () { tell({ status: 'none' }); offerRematch(); }, 300);
+        } else {
+            offerRematch();
         }
+    } else {
+        offerRematch();
     }
 
     this.unloadGame();

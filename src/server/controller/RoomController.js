@@ -16,6 +16,10 @@ function RoomController(room)
     this.chat        = new Chat();
     this.roomMaster  = null;
     this.launching   = null;
+    // Rematch: offered once a game has ended and its credit is done
+    // (rematchAvailable); pending once someone pressed ({by: [userId…]}).
+    this.rematch          = null;
+    this.rematchAvailable = false;
 
     this.onPlayerJoin     = this.onPlayerJoin.bind(this);
     this.onPlayerLeave    = this.onPlayerLeave.bind(this);
@@ -47,7 +51,8 @@ function RoomController(room)
         onConfigMaxScore: function (data) { controller.onConfigMaxScore(this, data[0], data[1]); },
         onConfigVariable: function (data) { controller.onConfigVariable(this, data[0], data[1]); },
         onConfigBonus: function (data) { controller.onConfigBonus(this, data[0], data[1]); },
-        onLaunch: function (data) { controller.onLaunch(this); }
+        onLaunch: function (data) { controller.onLaunch(this); },
+        onRematch: function () { controller.onRematch(this); }
     };
 
     this.loadRoom();
@@ -134,7 +139,8 @@ RoomController.prototype.attach = function(client, callback)
             master: this.roomMaster ? this.roomMaster.id : null,
             clients: this.clients.map(function () { return this.serialize(); }).items,
             messages: this.chat.serialize(100),
-            votes: this.kickManager.votes.map(function () { return this.serialize(); }).items
+            votes: this.kickManager.votes.map(function () { return this.serialize(); }).items,
+            rematch: this.serializeRematch()
         });
         this.emit('client:add', { room: this.room, client: client});
     } else {
@@ -150,6 +156,10 @@ RoomController.prototype.attach = function(client, callback)
  */
 RoomController.prototype.detach = function(client)
 {
+    if (this.rematch && this.clients.exists(client) && client.isPlaying()) {
+        this.cancelRematch(this.clientName(client) + ' left — rematch cancelled.');
+    }
+
     if (this.clients.remove(client)) {
         if (this.room.game) {
             this.room.game.controller.detach(client);
@@ -184,6 +194,7 @@ RoomController.prototype.attachEvents = function(client)
     client.on('room:color', this.callbacks.onColor);
     client.on('room:name', this.callbacks.onName);
     client.on('players:clear', this.onPlayersClear);
+    client.on('room:rematch', this.callbacks.onRematch);
 };
 
 /**
@@ -204,6 +215,7 @@ RoomController.prototype.detachEvents = function(client)
     client.removeListener('room:color', this.callbacks.onColor);
     client.removeListener('room:name', this.callbacks.onName);
     client.removeListener('players:clear', this.onPlayersClear);
+    client.removeListener('room:rematch', this.callbacks.onRematch);
 };
 
 /**
@@ -382,8 +394,9 @@ RoomController.prototype.launch = function()
         this.launching = clearTimeout(this.launching);
     }
 
-    // Ready-check: never start while a non-host player isn't ready.
-    if (!this.othersReady()) {
+    // Ready-check: never start while a non-host player isn't ready, nor
+    // while a rematch is waiting for everyone to accept.
+    if (this.rematch || !this.othersReady()) {
         this.socketGroup.addEvent('room:launch:cancel');
         return;
     }
@@ -542,6 +555,13 @@ RoomController.prototype.sweep = function()
             console.info('Seat of account %s released in room "%s".', client.userId, this.room.name);
             this.detach(client);
         }
+    }
+
+    // A pending rematch can't wait on someone who is gone: away for 30 s
+    // cancels it (their seat is kept, as always).
+    if (this.rematch) {
+        var gone = this.room.players.match(function () { return this.client && this.client.away && now - this.client.awaySince > 30000; });
+        if (gone) { this.cancelRematch(gone.name + ' is away — rematch cancelled.'); }
     }
 
     if (this.roomMaster && this.roomMaster.away && now - this.roomMaster.awaySince > this.hostHandoffAfter &&
@@ -773,6 +793,10 @@ RoomController.prototype.onReady = function(client, data, callback)
 {
     var player = client.players.getById(data.player);
 
+    if (player && this.rematch) {
+        return callback({success: false, error: 'Waiting for everyone to accept the rematch.', ready: player.ready});
+    }
+
     if (player) {
         // Ready is one-way for everyone but the host: the first press sets it
         // (a repeat press can't un-ready), and it is always re-broadcast.
@@ -917,6 +941,10 @@ RoomController.prototype.onConfigBonus = function(client, data, callback)
  */
 RoomController.prototype.onLaunch = function(client)
 {
+    if (this.isRoomMaster(client) && this.rematch) {
+        return client.addEvent('room:launch:refused', {error: 'Waiting for everyone to accept the rematch.'});
+    }
+
     if (this.isRoomMaster(client)) {
         if (this.launching) {
             this.cancelLaunch();
@@ -961,7 +989,118 @@ RoomController.prototype.onPlayerLeave = function(data)
  */
 RoomController.prototype.onGame = function()
 {
+    this.rematch          = null;
+    this.rematchAvailable = false;
+    this.socketGroup.addEvent('room:rematch', this.serializeRematch());
     this.socketGroup.addEvent('room:game:start');
+};
+
+/**
+ * The game that just ended is decided and its credit done: offer a rematch.
+ */
+RoomController.prototype.offerRematch = function()
+{
+    if (this.room.game) { return; }
+
+    this.rematchAvailable = true;
+    this.socketGroup.addEvent('room:rematch', this.serializeRematch());
+};
+
+/**
+ * A player pressed Rematch. The first press makes it pending (everyone is
+ * sent back to the room chat); it only takes effect once every player in the
+ * room has pressed — then ready states are cleared and the normal Ready /
+ * Start flow runs again (a new game gets its own game key, so its credit is
+ * separate from the previous game's).
+ *
+ * @param {SocketClient} client
+ */
+RoomController.prototype.onRematch = function(client)
+{
+    if (this.room.game || !this.rematchAvailable || !client.userId || !client.isPlaying()) { return; }
+
+    if (!this.rematch) {
+        this.rematch = {by: [client.userId]};
+    } else if (this.rematch.by.indexOf(client.userId) < 0) {
+        this.rematch.by.push(client.userId);
+    }
+
+    var by = this.rematch.by,
+        players = this.room.players.items,
+        everyone = players.length >= 2 && players.every(function (player) { return player.client && by.indexOf(player.client.userId) >= 0; }),
+        i, player;
+
+    if (!everyone) {
+        this.socketGroup.addEvent('room:rematch', this.serializeRematch());
+        return;
+    }
+
+    this.rematch          = null;
+    this.rematchAvailable = false;
+
+    for (i = players.length - 1; i >= 0; i--) {
+        player = players[i];
+        player.toggleReady(false);
+        this.socketGroup.addEvent('player:ready', { player: player.id, ready: player.ready });
+    }
+
+    this.cancelLaunch();
+    this.socketGroup.addEvent('room:rematch', this.serializeRematch({accepted: true}));
+};
+
+/**
+ * Drop a pending rematch (someone left or is gone) and say why.
+ *
+ * @param {String} message
+ */
+RoomController.prototype.cancelRematch = function(message)
+{
+    if (!this.rematch) { return; }
+
+    this.rematch = null;
+    this.socketGroup.addEvent('room:rematch', this.serializeRematch({cancelled: message}));
+};
+
+/**
+ * Name of a client's (first) player
+ *
+ * @param {SocketClient} client
+ *
+ * @return {String}
+ */
+RoomController.prototype.clientName = function(client)
+{
+    var player = client.players.items[0];
+
+    return player ? player.name : 'A player';
+};
+
+/**
+ * Rematch state as sent to clients
+ *
+ * @param {Object} extra
+ *
+ * @return {Object}
+ */
+RoomController.prototype.serializeRematch = function(extra)
+{
+    var by = this.rematch ? this.rematch.by : [],
+        players = this.room.players.items,
+        pressed = players.filter(function (player) { return player.client && by.indexOf(player.client.userId) >= 0; }),
+        waiting = players.filter(function (player) { return !player.client || by.indexOf(player.client.userId) < 0; }),
+        data = {
+            available: this.rematchAvailable,
+            pending: this.rematch ? true : false,
+            by: pressed.map(function (player) { return player.id; }),
+            names: pressed.map(function (player) { return player.name; }),
+            waiting: waiting.map(function (player) { return player.name; })
+        };
+
+    if (extra) {
+        for (var key in extra) { if (extra.hasOwnProperty(key)) { data[key] = extra[key]; } }
+    }
+
+    return data;
 };
 
 /**
@@ -974,6 +1113,7 @@ RoomController.prototype.onKick = function(player)
     var client = player.client;
 
     this.socketGroup.addEvent('room:kick', player.id);
+    if (this.rematch) { this.cancelRematch(player.name + ' left — rematch cancelled.'); }
     this.removePlayer(player);
 
     // Removed by the host: the whole connection leaves the room (all of its

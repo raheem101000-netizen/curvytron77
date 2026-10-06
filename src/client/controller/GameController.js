@@ -34,11 +34,14 @@ function GameController($scope, $routeParams, $location, client, repository, cha
     this.onExit       = this.onExit.bind(this);
     this.onFirstRound = this.onFirstRound.bind(this);
     this.backToRoom   = this.backToRoom.bind(this);
+    this.onRematch    = this.onRematch.bind(this);
 
     // Hydrate scope:
     this.$scope.radio           = this.radio;
     this.$scope.sound           = this.sound;
     this.$scope.backToRoom      = this.backToRoom;
+    this.$scope.requestRematch  = function () { repository.parent.requestRematch(); };
+    this.$scope.rematch         = repository.parent.rematch;
     this.$scope.toggleSound     = this.sound.toggle;
     this.$scope.toggleRadio     = this.radio.toggle;
     this.$scope.avatars         = null;
@@ -73,6 +76,7 @@ GameController.prototype.attachEvents = function()
 {
     // Close on end?
     this.repository.on('spectate', this.onSpectate);
+    this.repository.parent.on('room:rematch', this.onRematch);
 };
 
 /**
@@ -81,6 +85,24 @@ GameController.prototype.attachEvents = function()
 GameController.prototype.detachEvents = function()
 {
     this.repository.off('spectate', this.onSpectate);
+    this.repository.parent.off('room:rematch', this.onRematch);
+};
+
+/**
+ * Rematch offered / pressed: the first press takes everyone back to the room
+ * chat, where the rematch waits for everyone to accept.
+ *
+ * @param {Event} e
+ */
+GameController.prototype.onRematch = function(e)
+{
+    this.$scope.rematch = e.detail;
+
+    if (e.detail && e.detail.pending && this.room) {
+        this.backToRoom();
+    }
+
+    this.digestScope();
 };
 
 /**

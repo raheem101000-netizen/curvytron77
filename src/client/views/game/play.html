@@ -80,6 +80,9 @@
                             Oops, everybody died...
                         </p>
                         <div ng-if="!game.started">
+                            <button ng-if="rematch.available && !rematch.pending" ng-click="requestRematch()" type="button" class="btn btn-hero btn-back-to-room">
+                                Rematch
+                            </button>
                             <button ng-click="backToRoom()" type="button" class="btn btn-hero btn-back-to-room">
                                 Back to the room
                             </button>

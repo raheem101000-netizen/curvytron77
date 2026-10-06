@@ -3196,11 +3196,14 @@ function GameController($scope, $routeParams, $location, client, repository, cha
     this.onExit       = this.onExit.bind(this);
     this.onFirstRound = this.onFirstRound.bind(this);
     this.backToRoom   = this.backToRoom.bind(this);
+    this.onRematch    = this.onRematch.bind(this);
 
     // Hydrate scope:
     this.$scope.radio           = this.radio;
     this.$scope.sound           = this.sound;
     this.$scope.backToRoom      = this.backToRoom;
+    this.$scope.requestRematch  = function () { repository.parent.requestRematch(); };
+    this.$scope.rematch         = repository.parent.rematch;
     this.$scope.toggleSound     = this.sound.toggle;
     this.$scope.toggleRadio     = this.radio.toggle;
     this.$scope.avatars         = null;
@@ -3235,6 +3238,7 @@ GameController.prototype.attachEvents = function()
 {
     // Close on end?
     this.repository.on('spectate', this.onSpectate);
+    this.repository.parent.on('room:rematch', this.onRematch);
 };
 
 /**
@@ -3243,6 +3247,24 @@ GameController.prototype.attachEvents = function()
 GameController.prototype.detachEvents = function()
 {
     this.repository.off('spectate', this.onSpectate);
+    this.repository.parent.off('room:rematch', this.onRematch);
+};
+
+/**
+ * Rematch offered / pressed: the first press takes everyone back to the room
+ * chat, where the rematch waits for everyone to accept.
+ *
+ * @param {Event} e
+ */
+GameController.prototype.onRematch = function(e)
+{
+    this.$scope.rematch = e.detail;
+
+    if (e.detail && e.detail.pending && this.room) {
+        this.backToRoom();
+    }
+
+    this.digestScope();
 };
 
 /**
@@ -3592,6 +3614,7 @@ function RoomController($scope, $routeParams, $location, client, repository, pro
     this.start            = this.start.bind(this);
     this.onPlayerClient   = this.onPlayerClient.bind(this);
     this.onSuperseded     = this.onSuperseded.bind(this);
+    this.onRematch        = this.onRematch.bind(this);
 
     this.$scope.$on('$destroy', this.leaveRoom);
 
@@ -3607,6 +3630,9 @@ function RoomController($scope, $routeParams, $location, client, repository, pro
     this.$scope.toggleParameters  = this.toggleParameters;
     this.$scope.copyCode          = this.copyCode.bind(this);
     this.$scope.othersReady       = this.othersReady.bind(this);
+    this.$scope.requestRematch    = this.requestRematch.bind(this);
+    this.$scope.rematch           = null;
+    this.$scope.rematchMine       = false;
     this.onKicked                 = this.onKicked.bind(this);
     this.$scope.prizeLabel        = this.prizeLabel;
     this.$scope.nameMaxLength     = Player.prototype.maxLength;
@@ -3745,6 +3771,8 @@ RoomController.prototype.attachEvents = function()
     this.repository.on('room:launch:cancel', this.onLaunchCancel);
     this.repository.on('client:away', this.requestDigestScope);
     this.repository.on('player:client', this.onPlayerClient);
+    this.repository.on('room:rematch', this.onRematch);
+    this.setRematch(this.repository.rematch);
     this.client.on('room:kicked', this.onKicked);
     this.client.on('room:superseded', this.onSuperseded);
 
@@ -3772,6 +3800,7 @@ RoomController.prototype.detachEvents = function()
     this.repository.off('room:launch:cancel', this.onLaunchCancel);
     this.repository.off('client:away', this.requestDigestScope);
     this.repository.off('player:client', this.onPlayerClient);
+    this.repository.off('room:rematch', this.onRematch);
     this.client.off('room:kicked', this.onKicked);
     this.client.off('room:superseded', this.onSuperseded);
 
@@ -3795,6 +3824,8 @@ RoomController.prototype.goHome = function()
  */
 RoomController.prototype.launch = function()
 {
+    if (this.$scope.rematch) { return; }
+
     // "Start now!" needs every other player ready (the server checks too);
     // pressing it during the countdown cancels, as before.
     if (this.repository.amIMaster() && (this.$scope.launching || this.othersReady())) {
@@ -3815,6 +3846,52 @@ RoomController.prototype.othersReady = function()
     return this.room.players.items.every(function (player) {
         return (player.client && player.client.master) || (player.ready && !(player.client && player.client.away));
     });
+};
+
+/**
+ * Press Rematch (accept the one that's pending)
+ */
+RoomController.prototype.requestRematch = function()
+{
+    this.repository.requestRematch();
+};
+
+/**
+ * Show the rematch state: who pressed, who we're waiting for. Ready and
+ * Start are held back while it's pending.
+ *
+ * @param {Object} rematch
+ */
+RoomController.prototype.setRematch = function(rematch)
+{
+    var mine = false;
+
+    if (rematch && rematch.by && this.room) {
+        mine = this.room.getLocalPlayers().items.some(function (player) { return rematch.by.indexOf(player.id) >= 0; });
+    }
+
+    this.$scope.rematch     = rematch && rematch.pending ? rematch : null;
+    this.$scope.rematchMine = mine;
+};
+
+/**
+ * Rematch state from the server
+ *
+ * @param {Event} e
+ */
+RoomController.prototype.onRematch = function(e)
+{
+    var rematch = e.detail;
+
+    this.setRematch(rematch);
+
+    if (rematch && rematch.accepted) {
+        this.showToast('Rematch on — press Ready');
+    } else if (rematch && rematch.cancelled) {
+        this.showToast(rematch.cancelled);
+    }
+
+    this.requestDigestScope();
 };
 
 /**
@@ -4087,6 +4164,8 @@ RoomController.prototype.setName = function(player)
  */
 RoomController.prototype.setReady = function(player)
 {
+    if (this.$scope.rematch) { return; }
+
     if (!player.local) { return; }
 
     // One-way for players (the host starts instead): already ready → nothing to do.
@@ -8642,6 +8721,8 @@ function RoomRepository(client)
     this.master      = null;
     this.clients     = new Collection();
     this.playerCache = new Collection();
+    // Rematch state from the server ({available, pending, by, names, waiting}).
+    this.rematch     = null;
 
     this.start            = this.start.bind(this);
     this.onClientAdd      = this.onClientAdd.bind(this);
@@ -8662,6 +8743,7 @@ function RoomRepository(client)
     this.onClientActivity = this.onClientActivity.bind(this);
     this.onClientAway     = this.onClientAway.bind(this);
     this.onPlayerClient   = this.onPlayerClient.bind(this);
+    this.onRematch        = this.onRematch.bind(this);
     this.forwardEvent     = this.forwardEvent.bind(this);
 }
 
@@ -8694,6 +8776,7 @@ RoomRepository.prototype.attachEvents = function()
     this.client.on('client:activity', this.onClientActivity);
     this.client.on('client:away', this.onClientAway);
     this.client.on('player:client', this.onPlayerClient);
+    this.client.on('room:rematch', this.onRematch);
 };
 
 /**
@@ -8722,6 +8805,7 @@ RoomRepository.prototype.detachEvents = function()
     this.client.off('client:activity', this.onClientActivity);
     this.client.off('client:away', this.onClientAway);
     this.client.off('player:client', this.onPlayerClient);
+    this.client.off('room:rematch', this.onRematch);
 };
 
 /**
@@ -8747,6 +8831,7 @@ RoomRepository.prototype.join = function(name, password, callback)
                 messages = result.messages.length;
 
             repository.setRoom(room, clients, master);
+            repository.rematch = result.rematch || null;
             callback({success: true, room: room});
 
             for (var m = 0; m < messages; m++) {
@@ -8985,6 +9070,25 @@ RoomRepository.prototype.setName = function(player, name, callback)
 RoomRepository.prototype.setReady = function(player, callback)
 {
     this.client.addEvent('room:ready', {player: player}, callback);
+};
+
+/**
+ * Press Rematch
+ */
+RoomRepository.prototype.requestRematch = function()
+{
+    this.client.addEvent('room:rematch');
+};
+
+/**
+ * Rematch state changed (offered, pending, accepted, cancelled)
+ *
+ * @param {Event} e
+ */
+RoomRepository.prototype.onRematch = function(e)
+{
+    this.rematch = e.detail;
+    this.emit('room:rematch', e.detail);
 };
 
 /**
@@ -9347,6 +9451,7 @@ RoomRepository.prototype.start = function()
  */
 RoomRepository.prototype.stop = function()
 {
+    this.rematch = null;
     this.detachEvents();
     this.playerCache.clear();
     this.setRoom(null, new Collection(), null);

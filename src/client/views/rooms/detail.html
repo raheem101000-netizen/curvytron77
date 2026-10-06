@@ -9,7 +9,13 @@
             <ng-include src="'js/views/rooms/parameters.html'"></ng-include>
         </div>
 
-        <button type="button" class="btn start-now" ng-click="launch()" ng-if="master || launching" ng-disabled="master && !launching && !othersReady()" title="{{ (master && !launching && !othersReady()) ? 'Waiting for every player to be ready' : '' }}">
+        <div class="kurver-rematch" ng-if="rematch" style="margin:0 0 14px;padding:10px 14px;border-radius:10px;background:rgba(255,180,0,0.1);border:1px solid rgba(255,180,0,0.4);color:#FFB400;font-weight:700;">
+            <span ng-if="rematchMine">Waiting for {{ rematch.waiting.join(', ') }} to accept…</span>
+            <span ng-if="!rematchMine">{{ rematch.names.join(', ') }} wants a rematch</span>
+            <button type="button" class="btn btn-hero" ng-if="!rematchMine" ng-click="requestRematch()" style="margin-left:12px;">Rematch</button>
+        </div>
+
+        <button type="button" class="btn start-now" ng-click="launch()" ng-if="(master || launching) && !rematch" ng-disabled="master && !launching && !othersReady()" title="{{ (master && !launching && !othersReady()) ? 'Waiting for every player to be ready' : '' }}">
             <span class="label" ng-if="!launching">{{ othersReady() ? 'Start now!' : 'Waiting for players…' }}</span>
             <span id="starter-count" ng-if="launching">{{ launching }}</span>
         </button>
@@ -103,7 +109,7 @@
                             </button>
                         </td>
                         <td class="col-ready">
-                            <div class="player-ready local" ng-click="setReady(player)" ng-class="{ ready: player.ready }">
+                            <div class="player-ready local" ng-click="setReady(player)" ng-class="{ ready: player.ready }" ng-style="rematch ? {opacity: 0.4, 'pointer-events': 'none'} : {}">
                                 <span>
                                     <span ng-if="!player.ready">Ready?</span>
                                     <span ng-if="player.ready" class="icon-check success"></span>

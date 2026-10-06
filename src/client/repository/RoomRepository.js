@@ -12,6 +12,8 @@ function RoomRepository(client)
     this.master      = null;
     this.clients     = new Collection();
     this.playerCache = new Collection();
+    // Rematch state from the server ({available, pending, by, names, waiting}).
+    this.rematch     = null;
 
     this.start            = this.start.bind(this);
     this.onClientAdd      = this.onClientAdd.bind(this);
@@ -32,6 +34,7 @@ function RoomRepository(client)
     this.onClientActivity = this.onClientActivity.bind(this);
     this.onClientAway     = this.onClientAway.bind(this);
     this.onPlayerClient   = this.onPlayerClient.bind(this);
+    this.onRematch        = this.onRematch.bind(this);
     this.forwardEvent     = this.forwardEvent.bind(this);
 }
 
@@ -64,6 +67,7 @@ RoomRepository.prototype.attachEvents = function()
     this.client.on('client:activity', this.onClientActivity);
     this.client.on('client:away', this.onClientAway);
     this.client.on('player:client', this.onPlayerClient);
+    this.client.on('room:rematch', this.onRematch);
 };
 
 /**
@@ -92,6 +96,7 @@ RoomRepository.prototype.detachEvents = function()
     this.client.off('client:activity', this.onClientActivity);
     this.client.off('client:away', this.onClientAway);
     this.client.off('player:client', this.onPlayerClient);
+    this.client.off('room:rematch', this.onRematch);
 };
 
 /**
@@ -117,6 +122,7 @@ RoomRepository.prototype.join = function(name, password, callback)
                 messages = result.messages.length;
 
             repository.setRoom(room, clients, master);
+            repository.rematch = result.rematch || null;
             callback({success: true, room: room});
 
             for (var m = 0; m < messages; m++) {
@@ -355,6 +361,25 @@ RoomRepository.prototype.setName = function(player, name, callback)
 RoomRepository.prototype.setReady = function(player, callback)
 {
     this.client.addEvent('room:ready', {player: player}, callback);
+};
+
+/**
+ * Press Rematch
+ */
+RoomRepository.prototype.requestRematch = function()
+{
+    this.client.addEvent('room:rematch');
+};
+
+/**
+ * Rematch state changed (offered, pending, accepted, cancelled)
+ *
+ * @param {Event} e
+ */
+RoomRepository.prototype.onRematch = function(e)
+{
+    this.rematch = e.detail;
+    this.emit('room:rematch', e.detail);
 };
 
 /**
@@ -717,6 +742,7 @@ RoomRepository.prototype.start = function()
  */
 RoomRepository.prototype.stop = function()
 {
+    this.rematch = null;
     this.detachEvents();
     this.playerCache.clear();
     this.setRoom(null, new Collection(), null);
