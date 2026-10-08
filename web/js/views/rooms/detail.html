@@ -1,5 +1,9 @@
 <section>
-    <div class="container room">
+    <!-- Same layout as FIFA's lobby: open rooms left, this room right (one
+         column, list first, at <=700px). -->
+    <div class="kurver-layout">
+    <div ng-controller="RoomsController"><ng-include src="'js/views/rooms/list-panel.html'"></ng-include></div>
+    <div class="room kurver-panel kurver-room-panel">
         <h2 class="header">
             {{ ::room.name }}
             <i class="icon-params" ng-click="toggleParameters()" ng-class="{'active': displayParameters}"></i>
@@ -14,11 +18,6 @@
             <span ng-if="!rematchMine">{{ rematch.names.join(', ') }} wants a rematch</span>
             <button type="button" class="btn btn-hero" ng-if="!rematchMine" ng-click="requestRematch()" style="margin-left:12px;">Rematch</button>
         </div>
-
-        <button type="button" class="btn start-now" ng-click="launch()" ng-if="(master || launching) && !rematch" ng-disabled="master && !launching && !othersReady()" title="{{ (master && !launching && !othersReady()) ? 'Waiting for every player to be ready' : '' }}">
-            <span class="label" ng-if="!launching">{{ othersReady() ? 'Start now!' : 'Waiting for players…' }}</span>
-            <span id="starter-count" ng-if="launching">{{ launching }}</span>
-        </button>
 
         <form ng-submit="submitAddPlayer()" class="top-right-form" name="addPlayer">
             <button type="submit" id="submit"><span><i class="icon-plus"></i></span></button>
@@ -154,5 +153,30 @@
             <div class="clearfix"></div>
 
         </div>
+
+        <!-- Start (host), below the chat as in FIFA -->
+        <div class="kurver-room-actions">
+        <button type="button" class="btn start-now" ng-click="launch()" ng-if="(master || launching) && !rematch" ng-disabled="master && !launching && !othersReady()" title="{{ (master && !launching && !othersReady()) ? 'Waiting for every player to be ready' : '' }}">
+            <span class="label" ng-if="!launching">{{ othersReady() ? 'Start now!' : 'Waiting for players…' }}</span>
+            <span id="starter-count" ng-if="launching">{{ launching }}</span>
+        </button>
+        </div>
+    </div>
     </div>
 </section>
+
+<style>
+/* The room in FIFA's right-hand panel: one column — players, chat, Start. */
+.kurver-room-panel{margin:0;}
+.kurver-room-panel .header{margin-top:0;font-size:20px;}
+.kurver-room-panel .room-details{padding-top:10px;margin-top:0;}
+.kurver-room-panel .room-players{width:100%;float:none;padding:0;}
+.kurver-room-panel .room-players .col-color p{display:none;}
+.kurver-room-panel .room-players .col-keys{width:auto;}
+.kurver-room-panel .room-chat{width:100%;float:none;padding:0;}
+.kurver-room-panel .room-chat .chat-wrapper{margin-top:14px;}
+.kurver-room-panel .room-chat .chat-wrapper .feed{height:180px;max-height:180px;}
+.kurver-room-panel .top-right-form{float:none;width:100%;margin:6px 0 10px;}
+.kurver-room-actions{margin-top:14px;}
+.kurver-room-actions .start-now{float:none;width:100%;margin:0;}
+</style>
