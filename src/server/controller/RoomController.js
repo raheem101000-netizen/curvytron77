@@ -20,10 +20,17 @@ function RoomController(room)
     // (rematchAvailable); pending once someone pressed ({by: [userId…]}).
     this.rematch          = null;
     this.rematchAvailable = false;
+    // Accounts whose line left the game in progress (dropped / reloaded), and
+    // the result to tell them once it ends ({userIds: [], message}) — kept
+    // until they're back or the next game starts.
+    this.leftThisGame     = [];
+    this.leftResult       = null;
+    this.lastWinnerName   = null;
 
     this.onPlayerJoin     = this.onPlayerJoin.bind(this);
     this.onPlayerLeave    = this.onPlayerLeave.bind(this);
     this.onGame           = this.onGame.bind(this);
+    this.onGameEnd        = this.onGameEnd.bind(this);
     this.loadRoom         = this.loadRoom.bind(this);
     this.unloadRoom       = this.unloadRoom.bind(this);
     this.onVoteNew        = this.onVoteNew.bind(this);
@@ -95,6 +102,7 @@ RoomController.prototype.loadRoom = function()
     this.room.on('player:join', this.onPlayerJoin);
     this.room.on('player:leave', this.onPlayerLeave);
     this.room.on('game:new', this.onGame);
+    this.room.on('game:end', this.onGameEnd);
     this.kickManager.on('kick', this.onKick);
     this.kickManager.on('vote:new', this.onVoteNew);
     this.kickManager.on('vote:close', this.onVoteClose);
@@ -109,6 +117,7 @@ RoomController.prototype.unloadRoom = function()
     this.room.removeListener('player:join', this.onPlayerJoin);
     this.room.removeListener('player:leave', this.onPlayerLeave);
     this.room.removeListener('game:new', this.onGame);
+    this.room.removeListener('game:end', this.onGameEnd);
     this.kickManager.removeListener('kick', this.onKick);
     this.kickManager.removeListener('vote:new', this.onVoteNew);
     this.kickManager.removeListener('vote:close', this.onVoteClose);
@@ -134,6 +143,7 @@ RoomController.prototype.attach = function(client, callback)
         // (before the room is sent, so the player sees their own seat).
         this.socketGroup.addEvent('client:add', client.id);
         this.takeOverSeat(client);
+        this.deliverLeftResult();
         callback({
             success: true,
             room: this.room.serialize(),
@@ -597,9 +607,23 @@ RoomController.prototype.takeOverSeat = function(client)
 {
     if (!client.userId) { return; }
 
-    var old = this.clients.match(function () { return this !== client && this.userId === client.userId; });
+    // The connection holding the seat (with players), else any older one.
+    var old = this.clients.match(function () { return this !== client && this.userId === client.userId && this.isPlaying(); }) ||
+              this.clients.match(function () { return this !== client && this.userId === client.userId; });
 
     if (!old) { return; }
+
+    // Opened again (new tab / device) while still playing the running game
+    // on a live connection: don't pull that game away from it. This one
+    // watches; it takes the seat when the game ends, or if the playing
+    // connection drops (which loses the game, as any drop does).
+    if (this.room.game && old.connected && !old.away && old.isPlaying() && this.room.game.controller.clients.exists(old)) {
+        client.pendingSeat = true;
+        client.addEvent('kurver:notice', {message: 'You\'re already playing in another tab. This tab is watching; it takes your seat when the game ends.'});
+        return;
+    }
+
+    client.pendingSeat = false;
 
     var wasMaster = this.roomMaster === old,
         player, i;
@@ -711,6 +735,13 @@ RoomController.prototype.sweep = function()
 RoomController.prototype.onLeave = function(client)
 {
     this.detach(client);
+
+    // The last player pressed Leave: the room closes now (as FIFA) and leaves
+    // everyone's list at once. An emptied room after a drop still waits
+    // timeToClose (promptCheckForClose).
+    if (this.clients.isEmpty()) {
+        this.checkForClose();
+    }
 };
 
 /**
@@ -728,10 +759,38 @@ RoomController.prototype.onDrop = function(client)
     if (this.room.game) {
         // Same as before for the game in progress: the dropped player's
         // line is out of this game.
+        if (this.room.game.controller.clients.exists(client) && this.leftThisGame.indexOf(client.userId) < 0) {
+            this.leftThisGame.push(client.userId);
+        }
         this.room.game.controller.detach(client);
     }
 
     this.setAway(client, true);
+
+    // Another tab of this account was waiting for the seat: it takes it now.
+    var waiting = this.clients.match(function () { return this.pendingSeat && this.userId === client.userId && this.connected; });
+    if (waiting) {
+        this.takeOverSeat(waiting);
+    }
+};
+
+/**
+ * Tell players whose line left the game (dropped / reloaded mid-game) how it
+ * ended, on whichever connection of theirs is here now. Display only.
+ */
+RoomController.prototype.deliverLeftResult = function()
+{
+    var result = this.leftResult,
+        controller = this;
+
+    if (!result || !result.userIds.length) { return; }
+
+    result.userIds = result.userIds.filter(function (userId) {
+        var client = controller.clients.match(function () { return this.userId === userId && this.connected && this.isPlaying(); });
+        if (!client) { return true; }
+        client.addEvent('kurver:notice', {message: result.message});
+        return false;
+    });
 };
 
 /**
@@ -1153,10 +1212,46 @@ RoomController.prototype.onPlayerLeave = function(data)
  */
 RoomController.prototype.onGame = function()
 {
+    var controller = this,
+        game = this.room.game;
+
+    this.leftThisGame     = [];
+    this.leftResult       = null;
+    this.lastWinnerName   = null;
+    if (game) {
+        // First listener, so it runs before the room closes the game (game:end).
+        game.prependOnceListener('end', function () { controller.lastWinnerName = game.gameWinner ? game.gameWinner.name : null; });
+    }
+
     this.rematch          = null;
     this.rematchAvailable = false;
     this.socketGroup.addEvent('room:rematch', this.serializeRematch());
     this.socketGroup.addEvent('room:game:start');
+};
+
+/**
+ * A game ended: a tab that was waiting for its account's seat takes it, and
+ * players who left mid-game are told the result.
+ */
+RoomController.prototype.onGameEnd = function()
+{
+    var pending = this.clients.filter(function () { return this.pendingSeat; }).items,
+        i;
+
+    for (i = 0; i < pending.length; i++) {
+        if (this.clients.exists(pending[i]) && pending[i].connected) {
+            this.takeOverSeat(pending[i]);
+        }
+    }
+
+    if (this.leftThisGame.length) {
+        this.leftResult = {
+            userIds: this.leftThisGame,
+            message: this.lastWinnerName ? 'You left the game: ' + this.lastWinnerName + ' won.' : 'You left the game. It ended with no winner.'
+        };
+        this.leftThisGame = [];
+        this.deliverLeftResult();
+    }
 };
 
 /**

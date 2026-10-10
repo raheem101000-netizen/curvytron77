@@ -3088,6 +3088,7 @@ function CurvytronController($scope, $window, $location, profile, analyser, watc
     this.onConnect     = this.onConnect.bind(this);
     this.onDisconnect  = this.onDisconnect.bind(this);
     this.reload        = this.reload.bind(this);
+    this.onNotice      = this.onNotice.bind(this);
 
     // Hydrate scope
     this.$scope.status  = 'connecting';
@@ -3096,6 +3097,7 @@ function CurvytronController($scope, $window, $location, profile, analyser, watc
 
     this.client.on('connected', this.onConnect);
     this.client.on('disconnected', this.onDisconnect);
+    this.client.on('kurver:notice', this.onNotice);
 }
 
 CurvytronController.prototype = Object.create(AbstractController.prototype);
@@ -3153,6 +3155,31 @@ CurvytronController.prototype.scheduleReconnect = function(now)
             window.location.reload();
         }
     }, now ? 0 : Math.min(15000, 1000 * Math.pow(2, attempts)));
+};
+
+/**
+ * A message from the server for this player, on whatever screen they're on
+ * ("You're already playing in another tab", "You left the game: … won").
+ * Stays 15 s; click to close.
+ *
+ * @param {Event} e
+ */
+CurvytronController.prototype.onNotice = function(e)
+{
+    var message = e && e.detail && e.detail.message,
+        old = document.getElementById('kurver-notice'),
+        note;
+
+    if (!message) { return; }
+    if (old) { old.parentNode.removeChild(old); }
+
+    note = document.createElement('div');
+    note.id = 'kurver-notice';
+    note.textContent = message;
+    note.style.cssText = 'position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:10001;max-width:calc(100% - 32px);background:#14102a;border:1px solid rgba(180,80,255,0.6);color:#fff;padding:12px 20px;border-radius:10px;font-family:Space Grotesk,sans-serif;font-size:14px;cursor:pointer;text-align:center;';
+    note.onclick = function () { if (note.parentNode) { note.parentNode.removeChild(note); } };
+    document.body.appendChild(note);
+    setTimeout(note.onclick, 15000);
 };
 
 /**
