@@ -116,7 +116,8 @@ BasePlayer.prototype.serialize = function()
         id: this.id,
         name: this.name,
         color: this.color,
-        ready: this.ready
+        ready: this.ready,
+        pick: this.pick || null
     };
 };
 

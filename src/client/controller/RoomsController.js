@@ -48,6 +48,13 @@ function RoomsController($scope, $location, client)
     this.$scope.createForm        = {visible: false, name: '', type: 'public', password: '', error: '', busy: false};
     // Join with code popup: code + password (private matches only).
     this.$scope.joinForm          = {visible: false, code: '', password: '', error: '', busy: false, locked: false};
+    // 1v1 (KURVER_MODE, from /kurver-config.js): prize choice, same rules as FIFA.
+    this.$scope.kurver            = RoomsController.config();
+    this.$scope.kurver1v1         = this.$scope.kurver.mode === '1v1';
+    this.$scope.feeOf             = function (v) { return '$' + ((this.$scope.kurver.prizes[v] || {}).entryFee || '?'); }.bind(this);
+    // Joining a room open to both: pick the prize first.
+    this.$scope.pickForm          = {visible: false, name: '', password: null, error: ''};
+    this.$scope.pickPrize         = this.pickPrize.bind(this);
     this.$scope.$parent.profile   = true;
 
     this.attachEvents();
@@ -56,6 +63,47 @@ function RoomsController($scope, $location, client)
 
 RoomsController.prototype = Object.create(AbstractController.prototype);
 RoomsController.prototype.constructor = RoomsController;
+
+/**
+ * Mode and prize table from the server (kurver-money.js via /kurver-config.js)
+ *
+ * @return {Object}
+ */
+RoomsController.config = function()
+{
+    var config = window.KURVER || {};
+
+    return {mode: config.mode === 'multiplayer' ? 'multiplayer' : '1v1', prizes: config.prizes || {}};
+};
+
+/**
+ * Open the "pick the prize" popup (joining a room open to both)
+ *
+ * @param {String} name
+ * @param {String} password
+ */
+RoomsController.prototype.openPick = function(name, password)
+{
+    var form = this.$scope.pickForm;
+
+    this.closeModals();
+    form.name = name; form.password = password || null; form.error = '';
+    form.visible = true;
+};
+
+/**
+ * Join with the chosen prize
+ *
+ * @param {Number} prize
+ */
+RoomsController.prototype.pickPrize = function(prize)
+{
+    var form = this.$scope.pickForm;
+
+    if (!form.visible) { return; }
+    this.closeModals();
+    this.goToRoom(form.name, form.password, prize);
+};
 
 /**
  * Attach Events
@@ -112,6 +160,7 @@ RoomsController.prototype.openCreate = function()
     var form = this.$scope.createForm;
 
     form.name = ''; form.type = 'public'; form.password = ''; form.error = ''; form.busy = false;
+    form.prizeMode = null;   // nothing preselected: the host must choose
     form.visible = true;
     this.$scope.joinForm.visible = false;
     setTimeout(function () { var el = document.getElementById('kurver-create-name'); if (el) { el.focus(); } }, 50);
@@ -141,6 +190,7 @@ RoomsController.prototype.closeModals = function()
 {
     this.$scope.createForm.visible = false;
     this.$scope.joinForm.visible   = false;
+    this.$scope.pickForm.visible   = false;
 };
 
 /**
@@ -157,10 +207,11 @@ RoomsController.prototype.createRoom = function()
     if (form.busy) { return; }
     if (!name) { form.error = 'Enter a match name.'; return; }
     if (priv && !(form.password || '').trim()) { form.error = 'Enter a password for a private match.'; return; }
+    if (this.$scope.kurver1v1 && !form.prizeMode) { form.error = 'Pick a prize first'; return; }
 
     form.busy = true;
     this.pendingPassword = priv ? form.password : null;
-    this.repository.create(name, this.onCreateRoom, {open: !priv, password: this.pendingPassword});
+    this.repository.create(name, this.onCreateRoom, {open: !priv, password: this.pendingPassword, prizeMode: this.$scope.kurver1v1 ? form.prizeMode : null});
 };
 
 /**
@@ -205,7 +256,9 @@ RoomsController.prototype.joinByCode = function()
     this.repository.findByCode(code, password, function (result) {
         form.busy = false;
 
-        if (result.success) {
+        if (result.success && result.needsPick) {
+            controller.openPick(result.name, result.open ? null : password);
+        } else if (result.success) {
             controller.closeModals();
             controller.goToRoom(result.name, result.open ? null : password);
         } else {
@@ -222,12 +275,16 @@ RoomsController.prototype.joinByCode = function()
  * @param {String} name
  * @param {String} password
  */
-RoomsController.prototype.goToRoom = function(name, password)
+RoomsController.prototype.goToRoom = function(name, password, prize)
 {
     var path = this.$location.path('/room/' + encodeURIComponent(name));
 
     if (password) {
         path.search('password', password);
+    }
+
+    if (prize) {
+        path.search('prize', prize);
     }
 };
 
@@ -237,7 +294,10 @@ RoomsController.prototype.goToRoom = function(name, password)
  */
 RoomsController.prototype.joinRoom = function(room)
 {
-    if (room.open) {
+    // 1v1, a public room open to both with someone in it: pick the prize first.
+    if (this.$scope.kurver1v1 && room.open && room.prizeMode === 'both' && room.players > 0 && room.players < 2 && !room.game) {
+        this.openPick(room.name, null);
+    } else if (room.open) {
         this.$location.path(room.getUrl());
     } else {
         this.openJoin(room.code || '');

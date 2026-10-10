@@ -67,6 +67,35 @@ function prize(startedPlayers) {
     return Math.max(0, 2 * (n - 1));
 }
 
+// ── Mode and 1v1 prizes ──────────────────────────────────────────────────────
+// KURVER_MODE: "1v1" (default) — a room seats exactly 2 players who agree on
+// one of the prizes below (same rules as FIFA / Pong); "multiplayer" — the
+// original rooms: $2 entry, prize by player count (prize() above). Read on
+// every call, like the payout kill-switch.
+function mode() {
+    return process.env.KURVER_MODE === 'multiplayer' ? 'multiplayer' : '1v1';
+}
+function isOneVOne() { return mode() === '1v1'; }
+
+// The ONE place the 1v1 prizes are defined (dollars, exact strings): the
+// server validates and credits from it, and the lobby pages load it from
+// /kurver-config.js — a label, a credit and a charge can never disagree.
+const PRIZES = {
+    5: { prize: '5.00', entryFee: '2.99' },
+    10: { prize: '10.00', entryFee: '5.99' },
+};
+function asPrize(v) { const n = Number(v); return n === 5 || n === 10 ? n : null; }
+function asPrizeMode(v) { return v === '5' || v === '10' || v === 'both' ? v : null; }
+// What the winner of a match on this prize is credited.
+function prizeAmount(p) { return PRIZES[p].prize; }
+// Entry fee each player pays for the agreed prize — the hook for when entry
+// charging is built (nothing is charged yet).
+function entryFeeFor(p) { return PRIZES[p].entryFee; }
+// Served as /kurver-config.js for the pages.
+function clientScript() {
+    return 'window.KURVER = ' + JSON.stringify({ mode: mode(), prizes: PRIZES }) + ';\n';
+}
+
 // ── Kill-switch ──────────────────────────────────────────────────────────────
 // Payouts are ON by default. KURVER_PAYOUTS_ENABLED=false (exactly "false")
 // turns them OFF: games play and end normally, creditWin credits nothing and
@@ -156,4 +185,5 @@ async function creditWinWithRetry(opts) {
     return { status: 'failed' };
 }
 
-module.exports = { authenticate, authenticateUpgrade, AuthError, prize, payoutsEnabled, newGameKey, creditWin, creditWinWithRetry, pool };
+module.exports = { authenticate, authenticateUpgrade, AuthError, prize, payoutsEnabled, newGameKey, creditWin, creditWinWithRetry, pool,
+    mode, isOneVOne, PRIZES, asPrize, asPrizeMode, prizeAmount, entryFeeFor, clientScript };

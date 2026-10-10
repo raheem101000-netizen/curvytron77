@@ -52,7 +52,8 @@ function RoomController(room)
         onConfigVariable: function (data) { controller.onConfigVariable(this, data[0], data[1]); },
         onConfigBonus: function (data) { controller.onConfigBonus(this, data[0], data[1]); },
         onLaunch: function (data) { controller.onLaunch(this); },
-        onRematch: function () { controller.onRematch(this); }
+        onRematch: function () { controller.onRematch(this); },
+        onPrize: function (data) { controller.onPrize(this, data[0], data[1]); }
     };
 
     this.loadRoom();
@@ -195,6 +196,7 @@ RoomController.prototype.attachEvents = function(client)
     client.on('room:name', this.callbacks.onName);
     client.on('players:clear', this.onPlayersClear);
     client.on('room:rematch', this.callbacks.onRematch);
+    client.on('room:prize', this.callbacks.onPrize);
 };
 
 /**
@@ -216,6 +218,7 @@ RoomController.prototype.detachEvents = function(client)
     client.removeListener('room:name', this.callbacks.onName);
     client.removeListener('players:clear', this.onPlayersClear);
     client.removeListener('room:rematch', this.callbacks.onRematch);
+    client.removeListener('room:prize', this.callbacks.onPrize);
 };
 
 /**
@@ -394,14 +397,142 @@ RoomController.prototype.launch = function()
         this.launching = clearTimeout(this.launching);
     }
 
-    // Ready-check: never start while a non-host player isn't ready, nor
-    // while a rematch is waiting for everyone to accept.
-    if (this.rematch || !this.othersReady()) {
+    // Ready-check: never start while a player isn't ready (1v1: both ready
+    // on the same prize), nor while a rematch is waiting for everyone.
+    if (this.rematch || !this.canStart()) {
         this.socketGroup.addEvent('room:launch:cancel');
         return;
     }
 
+    if (KurverMoney.isOneVOne()) {
+        // The game freezes this as its prize (Game.js).
+        this.room.lastPrize = this.agreedPrize();
+    }
+
     this.room.newGame();
+};
+
+/**
+ * Can "Start now!" start? Multiplayer: every non-host player ready. 1v1
+ * (same rules as FIFA): two players, both Ready on the same prize, both here.
+ *
+ * @return {Boolean}
+ */
+RoomController.prototype.canStart = function()
+{
+    if (!KurverMoney.isOneVOne()) { return this.othersReady(); }
+
+    var players = this.room.players.items;
+
+    return this.agreedPrize() !== null && players.every(function (player) {
+        return player.ready && player.client && !player.client.away;
+    });
+};
+
+/**
+ * 1v1: the prize both players want, or null (fewer than two players, a pick
+ * missing, or different picks).
+ *
+ * @return {Number|null}
+ */
+RoomController.prototype.agreedPrize = function()
+{
+    var players = this.room.players.items;
+
+    if (players.length !== 2 || !players[0].pick) { return null; }
+
+    return players[1].pick === players[0].pick ? players[0].pick : null;
+};
+
+/**
+ * 1v1: clear everyone's Ready (a prize change, or someone new at the table)
+ * and stop a countdown that's running — Ready always means "I accept the
+ * prize showing right now".
+ */
+RoomController.prototype.clearReady = function()
+{
+    for (var player, i = this.room.players.items.length - 1; i >= 0; i--) {
+        player = this.room.players.items[i];
+        if (player.ready) {
+            player.toggleReady(false);
+            this.socketGroup.addEvent('player:ready', { player: player.id, ready: false });
+        }
+    }
+
+    this.cancelLaunch();
+};
+
+/**
+ * 1v1 prize state as sent to clients
+ *
+ * @return {Object}
+ */
+RoomController.prototype.serializePrizes = function()
+{
+    return {
+        prizeMode: this.room.prizeMode || null,
+        players: this.room.players.items.map(function (player) { return {id: player.id, pick: player.pick || null, ready: player.ready}; })
+    };
+};
+
+/**
+ * 1v1: a player changes the prize. A room open to both: anyone, their own
+ * pick only. A fixed-prize room: only the host, and it changes the room's
+ * prize (both picks, with a line in the chat). Any real change clears both
+ * players' Ready.
+ *
+ * @param {SocketClient} client
+ * @param {Object} data
+ * @param {Function} callback
+ */
+RoomController.prototype.onPrize = function(client, data, callback)
+{
+    callback = typeof(callback) === 'function' ? callback : function () {};
+
+    var player = client.players.getFirst(),
+        prize = KurverMoney.asPrize(data && data.prize),
+        room = this.room,
+        i;
+
+    if (!KurverMoney.isOneVOne() || !player) { return callback({success: false, error: 'No prize to choose here.'}); }
+    if (room.game) { return callback({success: false, error: 'The game has already started.'}); }
+    if (this.rematch) { return callback({success: false, error: 'Waiting for everyone to accept the rematch.'}); }
+    if (!prize) { return callback({success: false, error: 'Pick $5 or $10'}); }
+
+    if (room.prizeMode === 'both') {
+        if (player.pick === prize) { return callback({success: true}); }
+        player.pick = prize;
+    } else {
+        if (client !== this.roomMaster) { return callback({success: false, error: 'Only the host can change the prize'}); }
+        if (room.prizeMode === String(prize)) { return callback({success: true}); }
+        room.prizeMode = String(prize);
+        for (i = room.players.items.length - 1; i >= 0; i--) { room.players.items[i].pick = prize; }
+        this.systemLine(player.name + ' changed the prize to $' + prize);
+        room.emit('prize:mode', {room: room});
+    }
+
+    this.clearReady();
+    this.socketGroup.addEvent('room:prizes', this.serializePrizes());
+    callback({success: true});
+};
+
+/**
+ * A line the room itself writes into the chat (kept in its history).
+ *
+ * @param {String} content
+ */
+RoomController.prototype.systemLine = function(content)
+{
+    var line = {
+        id: null,
+        client: {id: null},
+        content: content,
+        creation: new Date(),
+        serialize: function () { return {client: null, content: this.content, creation: this.creation.getTime(), system: true}; }
+    };
+
+    this.chat.messages.add(line);
+    this.socketGroup.addEvent('room:talk', line.serialize());
 };
 
 /**
@@ -437,7 +568,7 @@ RoomController.prototype.awayNames = function()
  */
 RoomController.prototype.checkLaunch = function()
 {
-    if (this.launching && !this.othersReady()) {
+    if (this.launching && !this.canStart()) {
         this.cancelLaunch();
     }
 };
@@ -675,7 +806,27 @@ RoomController.prototype.onPlayerAdd = function(client, data, callback)
         return callback({success: false, error: 'Unknown client'});
     }
 
+    // 1v1: two seats; the new seat's prize. Fixed room: the room's prize.
+    // Room open to both: the host starts with no pick, the joiner brings one.
+    var pick = null;
+
+    if (KurverMoney.isOneVOne()) {
+        if (this.room.players.count() >= 2) {
+            return callback({success: false, error: 'This match is full'});
+        }
+        if (this.room.prizeMode !== 'both') {
+            pick = KurverMoney.asPrize(this.room.prizeMode);
+        } else if (this.room.players.count() > 0) {
+            pick = KurverMoney.asPrize(client.prizePick);
+            if (!pick) {
+                return callback({success: false, error: 'PICK_PRIZE: The host is open to both. Pick the prize'});
+            }
+        }
+    }
+
     var player = new Player(client, name, color);
+
+    player.pick = pick;
 
     if (this.room.addPlayer(player)) {
         client.players.add(player);
@@ -797,6 +948,12 @@ RoomController.prototype.onReady = function(client, data, callback)
         return callback({success: false, error: 'Waiting for everyone to accept the rematch.', ready: player.ready});
     }
 
+    // 1v1: Ready means "I accept the prize showing right now" — only once
+    // both players are here and want the same prize.
+    if (player && KurverMoney.isOneVOne() && this.agreedPrize() === null) {
+        return callback({success: false, error: this.room.players.count() < 2 ? 'Need a second player first' : 'Agree on a prize before pressing Ready', ready: player.ready});
+    }
+
     if (player) {
         // Ready is one-way for everyone but the host: the first press sets it
         // (a repeat press can't un-ready), and it is always re-broadcast.
@@ -809,7 +966,8 @@ RoomController.prototype.onReady = function(client, data, callback)
         callback({success: true, ready: player.ready});
         this.socketGroup.addEvent('player:ready', { player: player.id, ready: player.ready });
 
-        if (this.room.isReady()) {
+        // 1v1: both Ready unlocks the host's "Start now!" (no auto-start).
+        if (!KurverMoney.isOneVOne() && this.room.isReady()) {
             this.launch();
         } else {
             this.checkLaunch();
@@ -948,11 +1106,13 @@ RoomController.prototype.onLaunch = function(client)
     if (this.isRoomMaster(client)) {
         if (this.launching) {
             this.cancelLaunch();
-        } else if (this.othersReady()) {
+        } else if (this.canStart()) {
             this.startLaunch();
         } else {
             var away = this.awayNames();
-            client.addEvent('room:launch:refused', {error: away.length ? 'Waiting for ' + away.join(', ') + ' to come back.' : 'Waiting for every player to be ready.'});
+            client.addEvent('room:launch:refused', {error: away.length ? 'Waiting for ' + away.join(', ') + ' to come back.'
+                : !KurverMoney.isOneVOne() ? 'Waiting for every player to be ready.'
+                : this.agreedPrize() === null ? 'Agree on a prize first' : 'Waiting for both players to be ready'});
         }
     }
 };
@@ -965,6 +1125,8 @@ RoomController.prototype.onLaunch = function(client)
 RoomController.prototype.onPlayerJoin = function(data)
 {
     this.socketGroup.addEvent('room:join', {player: data.player.serialize()});
+    // 1v1: someone new at the table — any earlier Ready was for another pairing.
+    if (KurverMoney.isOneVOne()) { this.clearReady(); }
     this.checkLaunch();
 };
 
@@ -977,7 +1139,9 @@ RoomController.prototype.onPlayerLeave = function(data)
 {
     this.socketGroup.addEvent('room:leave', {player: data.player.id});
 
-    if (this.room.isReady()) {
+    if (KurverMoney.isOneVOne()) {
+        this.clearReady();
+    } else if (this.room.isReady()) {
         this.launch();
     }
 };
@@ -1041,8 +1205,15 @@ RoomController.prototype.onRematch = function(client)
     for (i = players.length - 1; i >= 0; i--) {
         player = players[i];
         player.toggleReady(false);
+        // 1v1: same prize setting; in a room open to both, both start on the
+        // prize they just played for.
+        if (KurverMoney.isOneVOne()) {
+            player.pick = this.room.prizeMode === 'both' ? KurverMoney.asPrize(this.room.lastPrize) : KurverMoney.asPrize(this.room.prizeMode);
+        }
         this.socketGroup.addEvent('player:ready', { player: player.id, ready: player.ready });
     }
+
+    if (KurverMoney.isOneVOne()) { this.socketGroup.addEvent('room:prizes', this.serializePrizes()); }
 
     this.cancelLaunch();
     this.socketGroup.addEvent('room:rematch', this.serializeRematch({accepted: true}));

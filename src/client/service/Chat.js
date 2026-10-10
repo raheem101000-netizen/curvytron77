@@ -162,7 +162,14 @@ Chat.prototype.talk = function()
  */
 Chat.prototype.onTalk = function(e)
 {
-    if (typeof(e.detail) !== 'undefined' && e.detail) {
+    if (typeof(e.detail) !== 'undefined' && e.detail && e.detail.system) {
+        // A line the room itself wrote (e.g. "Sam changed the prize to $10").
+        var line = new Message(e.detail.creation);
+        line.type    = 'system';
+        line.icon    = 'icon-megaphone';
+        line.content = e.detail.content;
+        this.addMessage(line);
+    } else if (typeof(e.detail) !== 'undefined' && e.detail) {
         this.addMessage(new MessagePlayer(
             e.detail.client,
             e.detail.content,

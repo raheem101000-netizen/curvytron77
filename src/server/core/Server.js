@@ -21,6 +21,10 @@ function Server(config)
     this.app.use(express['static']('web'));
 
     var self = this;
+    // Mode and 1v1 prize table (kurver-money.js) for the lobby pages.
+    this.app.get('/kurver-config.js', function(req, res) {
+        res.type('application/javascript').set('Cache-Control', 'no-cache').send(KurverMoney.clientScript());
+    });
     this.app.get('/status', function(req, res) {
         // Public, read-only status check polled cross-origin from the
         // admin dashboard — no sensitive data, so a wildcard is fine.

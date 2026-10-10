@@ -1785,7 +1785,8 @@ BasePlayer.prototype.serialize = function()
         id: this.id,
         name: this.name,
         color: this.color,
-        ready: this.ready
+        ready: this.ready,
+        pick: this.pick || null
     };
 };
 
@@ -1967,7 +1968,8 @@ BaseRoom.prototype.serialize = function(full)
         players: full ? this.players.map(function () { return this.serialize(); }).items : this.players.count(),
         game: this.game ? true : false,
         open: this.config.open,
-        code: this.code || null
+        code: this.code || null,
+        prizeMode: this.prizeMode || null
     };
 
     if (full) {
@@ -3581,6 +3583,8 @@ function RoomController($scope, $routeParams, $location, client, repository, pro
     this.hasTouch       = typeof(window.ontouchstart) !== 'undefined';
     this.name           = decodeURIComponent($routeParams.name);
     this.password       = typeof(search.password) !== 'undefined' ? search.password : null;
+    // 1v1, joining a room open to both: the prize picked on the list.
+    this.prize          = typeof(search.prize) !== 'undefined' ? Number(search.prize) : null;
     this.repository     = repository;
     this.controlSynchro = false;
     // Phones and tablets get the touch controls automatically.
@@ -3635,6 +3639,15 @@ function RoomController($scope, $routeParams, $location, client, repository, pro
     this.$scope.rematchMine       = false;
     this.onKicked                 = this.onKicked.bind(this);
     this.$scope.prizeLabel        = this.prizeLabel;
+    // 1v1 prize choice (same rules and wording as FIFA).
+    this.$scope.kurver            = RoomsController.config();
+    this.$scope.kurver1v1         = this.$scope.kurver.mode === '1v1';
+    this.$scope.canStart          = this.canStart.bind(this);
+    this.$scope.agreedPrize       = this.agreedPrize.bind(this);
+    this.$scope.prizeState        = this.prizeState.bind(this);
+    this.$scope.prizeStatus       = this.prizeStatus.bind(this);
+    this.$scope.prizeChoices      = this.prizeChoices.bind(this);
+    this.$scope.setPrize          = this.setPrize.bind(this);
     this.$scope.nameMaxLength     = Player.prototype.maxLength;
     this.$scope.colorMaxLength    = Player.prototype.colorMaxLength;
     this.$scope.hasTouch          = this.hasTouch;
@@ -3691,7 +3704,7 @@ RoomController.prototype.joinRoom = function()
     }
 
     this.profile.off('close', this.joinRoom);
-    this.repository.join(this.name, this.password, this.onJoined);
+    this.repository.join(this.name, this.password, this.onJoined, this.prize);
 };
 
 /**
@@ -3733,6 +3746,10 @@ RoomController.prototype.onJoined = function(result)
         console.error('Could not join room %s: %s', result.name, result.error);
         if (/^Unknown room/.test(result.error || '')) {
             this.showToast('That match is no longer open.');
+        } else if (/This match is full/.test(result.error || '')) {
+            this.showToast('This match is full');
+        } else if (/PICK_PRIZE/.test(result.error || '')) {
+            this.showToast('The host is open to both. Pick the prize');
         }
         this.goHome();
         this.applyScope();
@@ -3775,6 +3792,7 @@ RoomController.prototype.attachEvents = function()
     this.repository.on('client:away', this.requestDigestScope);
     this.repository.on('player:client', this.onPlayerClient);
     this.repository.on('room:rematch', this.onRematch);
+    this.repository.on('room:prizes', this.requestDigestScope);
     this.setRematch(this.repository.rematch);
     this.client.on('room:kicked', this.onKicked);
     this.client.on('room:superseded', this.onSuperseded);
@@ -3804,6 +3822,7 @@ RoomController.prototype.detachEvents = function()
     this.repository.off('client:away', this.requestDigestScope);
     this.repository.off('player:client', this.onPlayerClient);
     this.repository.off('room:rematch', this.onRematch);
+    this.repository.off('room:prizes', this.requestDigestScope);
     this.client.off('room:kicked', this.onKicked);
     this.client.off('room:superseded', this.onSuperseded);
 
@@ -3829,9 +3848,10 @@ RoomController.prototype.launch = function()
 {
     if (this.$scope.rematch) { return; }
 
-    // "Start now!" needs every other player ready (the server checks too);
-    // pressing it during the countdown cancels, as before.
-    if (this.repository.amIMaster() && (this.$scope.launching || this.othersReady())) {
+    // "Start now!" needs every other player ready (1v1: both Ready on the
+    // same prize; the server checks too); pressing it during the countdown
+    // cancels, as before.
+    if (this.repository.amIMaster() && (this.$scope.launching || this.canStart())) {
         this.repository.launch();
     }
 };
@@ -3849,6 +3869,113 @@ RoomController.prototype.othersReady = function()
     return this.room.players.items.every(function (player) {
         return (player.client && player.client.master) || (player.ready && !(player.client && player.client.away));
     });
+};
+
+/**
+ * Can the host start? Multiplayer: every other player ready. 1v1: both
+ * players Ready on the same prize and both here.
+ *
+ * @return {Boolean}
+ */
+RoomController.prototype.canStart = function()
+{
+    if (!this.$scope.kurver1v1) { return this.othersReady(); }
+    if (!this.room || this.agreedPrize() === null) { return false; }
+
+    return this.room.players.items.every(function (player) {
+        return player.ready && !(player.client && player.client.away);
+    });
+};
+
+/**
+ * 1v1: the prize both players want (null: fewer than two, a pick missing,
+ * or different picks)
+ *
+ * @return {Number|null}
+ */
+RoomController.prototype.agreedPrize = function()
+{
+    var players = this.room ? this.room.players.items : [];
+
+    if (players.length !== 2 || !players[0].pick) { return null; }
+
+    return players[1].pick === players[0].pick ? players[0].pick : null;
+};
+
+/**
+ * 1v1: a player's prize state next to their name
+ *
+ * @param {Player} player
+ *
+ * @return {String}
+ */
+RoomController.prototype.prizeState = function(player)
+{
+    if (!player.pick) { return 'Open to both'; }
+
+    return player.ready ? 'Ready · $' + player.pick : 'Wants $' + player.pick;
+};
+
+/**
+ * 1v1: the prize controls on your own name — both prizes while you have no
+ * pick in a room open to both, otherwise Change (to the other prize). In a
+ * fixed-prize room only the host gets Change.
+ *
+ * @param {Player} player
+ *
+ * @return {Array} prizes to offer as buttons ([] for none)
+ */
+RoomController.prototype.prizeChoices = function(player)
+{
+    if (!this.room || !player.local || this.$scope.rematch) { return []; }
+
+    var both = this.room.prizeMode === 'both';
+
+    if (!both && !this.repository.amIMaster()) { return []; }
+    if (both && !player.pick) { return [5, 10]; }
+
+    return [player.pick === 10 ? 5 : 10];
+};
+
+/**
+ * 1v1: change the prize
+ *
+ * @param {Number} prize
+ */
+RoomController.prototype.setPrize = function(prize)
+{
+    var controller = this;
+
+    this.repository.setPrize(prize, function (result) {
+        if (result && !result.success && result.error) { controller.showToast(result.error); }
+    });
+};
+
+/**
+ * 1v1 status line under the players
+ *
+ * @return {String}
+ */
+RoomController.prototype.prizeStatus = function()
+{
+    if (!this.room || this.$scope.rematch) { return ''; }
+
+    var players = this.room.players.items,
+        missing = players.filter(function (player) { return !player.pick; })[0],
+        agreed  = this.agreedPrize(),
+        prizes  = this.$scope.kurver.prizes,
+        host, joiner;
+
+    if (missing) { return 'Waiting for ' + missing.name + ' to choose a prize.'; }
+    if (players.length < 2) { return 'Waiting for an opponent.'; }
+
+    host   = players.filter(function (player) { return player.client && player.client.master; })[0] || players[0];
+    joiner = players.filter(function (player) { return player !== host; })[0];
+
+    if (agreed === null) { return 'Not agreed yet: ' + host.name + ' wants $' + host.pick + ', ' + joiner.name + ' wants $' + joiner.pick + '.'; }
+    if (players.every(function (player) { return player.ready; })) { return 'Both ready. Entry $' + ((prizes[agreed] || {}).entryFee || '?') + ' each.'; }
+
+    return 'Agreed on $' + agreed + '. Press Ready.';
 };
 
 /**
@@ -3889,7 +4016,7 @@ RoomController.prototype.onRematch = function(e)
     this.setRematch(rematch);
 
     if (rematch && rematch.accepted) {
-        this.showToast('Rematch on — press Ready');
+        this.showToast(this.$scope.kurver1v1 ? 'Rematch on — agree on the prize and press Ready.' : 'Rematch on — press Ready');
     } else if (rematch && rematch.cancelled) {
         this.showToast(rematch.cancelled);
     }
@@ -4171,6 +4298,9 @@ RoomController.prototype.setReady = function(player)
 
     if (!player.local) { return; }
 
+    // 1v1: Ready only once both want the same prize (the server checks too).
+    if (this.$scope.kurver1v1 && this.agreedPrize() === null) { return; }
+
     // One-way for players (the host starts instead): already ready → nothing to do.
     if (player.ready && !this.repository.amIMaster()) { return; }
 
@@ -4425,6 +4555,12 @@ RoomController.prototype.prizeLabel = function()
 {
     var count = this.room ? this.room.players.items.length : 0;
 
+    if (this.$scope.kurver1v1) {
+        var agreed = this.agreedPrize(),
+            mode   = this.room ? this.room.prizeMode : null;
+        return '1v1 — Prize: ' + (agreed ? '$' + agreed : mode === 'both' ? '$5 or $10' : mode ? '$' + mode : '');
+    }
+
     // Same rule the server pays with (kurver-money.js prize()):
     // 3 players \u2192 $5, otherwise $2 \u00d7 (n \u2212 1); nothing to show while it's $0.
     var prize = count === 3 ? 5 : Math.max(0, 2 * (count - 1));
@@ -4485,6 +4621,13 @@ function RoomsController($scope, $location, client)
     this.$scope.createForm        = {visible: false, name: '', type: 'public', password: '', error: '', busy: false};
     // Join with code popup: code + password (private matches only).
     this.$scope.joinForm          = {visible: false, code: '', password: '', error: '', busy: false, locked: false};
+    // 1v1 (KURVER_MODE, from /kurver-config.js): prize choice, same rules as FIFA.
+    this.$scope.kurver            = RoomsController.config();
+    this.$scope.kurver1v1         = this.$scope.kurver.mode === '1v1';
+    this.$scope.feeOf             = function (v) { return '$' + ((this.$scope.kurver.prizes[v] || {}).entryFee || '?'); }.bind(this);
+    // Joining a room open to both: pick the prize first.
+    this.$scope.pickForm          = {visible: false, name: '', password: null, error: ''};
+    this.$scope.pickPrize         = this.pickPrize.bind(this);
     this.$scope.$parent.profile   = true;
 
     this.attachEvents();
@@ -4493,6 +4636,47 @@ function RoomsController($scope, $location, client)
 
 RoomsController.prototype = Object.create(AbstractController.prototype);
 RoomsController.prototype.constructor = RoomsController;
+
+/**
+ * Mode and prize table from the server (kurver-money.js via /kurver-config.js)
+ *
+ * @return {Object}
+ */
+RoomsController.config = function()
+{
+    var config = window.KURVER || {};
+
+    return {mode: config.mode === 'multiplayer' ? 'multiplayer' : '1v1', prizes: config.prizes || {}};
+};
+
+/**
+ * Open the "pick the prize" popup (joining a room open to both)
+ *
+ * @param {String} name
+ * @param {String} password
+ */
+RoomsController.prototype.openPick = function(name, password)
+{
+    var form = this.$scope.pickForm;
+
+    this.closeModals();
+    form.name = name; form.password = password || null; form.error = '';
+    form.visible = true;
+};
+
+/**
+ * Join with the chosen prize
+ *
+ * @param {Number} prize
+ */
+RoomsController.prototype.pickPrize = function(prize)
+{
+    var form = this.$scope.pickForm;
+
+    if (!form.visible) { return; }
+    this.closeModals();
+    this.goToRoom(form.name, form.password, prize);
+};
 
 /**
  * Attach Events
@@ -4549,6 +4733,7 @@ RoomsController.prototype.openCreate = function()
     var form = this.$scope.createForm;
 
     form.name = ''; form.type = 'public'; form.password = ''; form.error = ''; form.busy = false;
+    form.prizeMode = null;   // nothing preselected: the host must choose
     form.visible = true;
     this.$scope.joinForm.visible = false;
     setTimeout(function () { var el = document.getElementById('kurver-create-name'); if (el) { el.focus(); } }, 50);
@@ -4578,6 +4763,7 @@ RoomsController.prototype.closeModals = function()
 {
     this.$scope.createForm.visible = false;
     this.$scope.joinForm.visible   = false;
+    this.$scope.pickForm.visible   = false;
 };
 
 /**
@@ -4594,10 +4780,11 @@ RoomsController.prototype.createRoom = function()
     if (form.busy) { return; }
     if (!name) { form.error = 'Enter a match name.'; return; }
     if (priv && !(form.password || '').trim()) { form.error = 'Enter a password for a private match.'; return; }
+    if (this.$scope.kurver1v1 && !form.prizeMode) { form.error = 'Pick a prize first'; return; }
 
     form.busy = true;
     this.pendingPassword = priv ? form.password : null;
-    this.repository.create(name, this.onCreateRoom, {open: !priv, password: this.pendingPassword});
+    this.repository.create(name, this.onCreateRoom, {open: !priv, password: this.pendingPassword, prizeMode: this.$scope.kurver1v1 ? form.prizeMode : null});
 };
 
 /**
@@ -4642,7 +4829,9 @@ RoomsController.prototype.joinByCode = function()
     this.repository.findByCode(code, password, function (result) {
         form.busy = false;
 
-        if (result.success) {
+        if (result.success && result.needsPick) {
+            controller.openPick(result.name, result.open ? null : password);
+        } else if (result.success) {
             controller.closeModals();
             controller.goToRoom(result.name, result.open ? null : password);
         } else {
@@ -4659,12 +4848,16 @@ RoomsController.prototype.joinByCode = function()
  * @param {String} name
  * @param {String} password
  */
-RoomsController.prototype.goToRoom = function(name, password)
+RoomsController.prototype.goToRoom = function(name, password, prize)
 {
     var path = this.$location.path('/room/' + encodeURIComponent(name));
 
     if (password) {
         path.search('password', password);
+    }
+
+    if (prize) {
+        path.search('prize', prize);
     }
 };
 
@@ -4674,7 +4867,10 @@ RoomsController.prototype.goToRoom = function(name, password)
  */
 RoomsController.prototype.joinRoom = function(room)
 {
-    if (room.open) {
+    // 1v1, a public room open to both with someone in it: pick the prize first.
+    if (this.$scope.kurver1v1 && room.open && room.prizeMode === 'both' && room.players > 0 && room.players < 2 && !room.game) {
+        this.openPick(room.name, null);
+    } else if (room.open) {
         this.$location.path(room.getUrl());
     } else {
         this.openJoin(room.code || '');
@@ -8749,6 +8945,7 @@ function RoomRepository(client)
     this.onClientAway     = this.onClientAway.bind(this);
     this.onPlayerClient   = this.onPlayerClient.bind(this);
     this.onRematch        = this.onRematch.bind(this);
+    this.onPrizes         = this.onPrizes.bind(this);
     this.forwardEvent     = this.forwardEvent.bind(this);
 }
 
@@ -8782,6 +8979,7 @@ RoomRepository.prototype.attachEvents = function()
     this.client.on('client:away', this.onClientAway);
     this.client.on('player:client', this.onPlayerClient);
     this.client.on('room:rematch', this.onRematch);
+    this.client.on('room:prizes', this.onPrizes);
 };
 
 /**
@@ -8811,6 +9009,7 @@ RoomRepository.prototype.detachEvents = function()
     this.client.off('client:away', this.onClientAway);
     this.client.off('player:client', this.onPlayerClient);
     this.client.off('room:rematch', this.onRematch);
+    this.client.off('room:prizes', this.onPrizes);
 };
 
 /**
@@ -8820,7 +9019,7 @@ RoomRepository.prototype.detachEvents = function()
  * @param {String} password
  * @param {Function} callback
  */
-RoomRepository.prototype.join = function(name, password, callback)
+RoomRepository.prototype.join = function(name, password, callback, prize)
 {
     var repository = this;
 
@@ -8828,7 +9027,7 @@ RoomRepository.prototype.join = function(name, password, callback)
         return callback({success: true, room: repository.room});
     }
 
-    this.client.addEvent('room:join', {name: name, password: password}, function (result) {
+    this.client.addEvent('room:join', {name: name, password: password, prize: prize || null}, function (result) {
         if (result.success) {
             var clients  = repository.createClients(result.clients),
                 master   = clients.getById(result.master),
@@ -8888,6 +9087,7 @@ RoomRepository.prototype.createRoom = function(data, clients)
         length = data.players.length;
 
     room.code = data.code || null;
+    room.prizeMode = data.prizeMode || null;
 
     for (var client, i =  0; i < length; i++) {
         client = clients.getById(data.players[i].client);
@@ -8900,6 +9100,7 @@ RoomRepository.prototype.createRoom = function(data, clients)
                 data.players[i].color,
                 data.players[i].ready
             ));
+            room.players.getById(data.players[i].id).pick = data.players[i].pick || null;
         } else {
             console.error('Could not find a client:', data.players[i].client, clients);
         }
@@ -9078,6 +9279,39 @@ RoomRepository.prototype.setReady = function(player, callback)
 };
 
 /**
+ * 1v1: change the prize (your own pick; in a fixed-prize room, the host
+ * changes the room's prize)
+ * @param {Number} prize
+ * @param {Function} callback
+ */
+RoomRepository.prototype.setPrize = function(prize, callback)
+{
+    this.client.addEvent('room:prize', {prize: prize}, callback);
+};
+
+/**
+ * 1v1 prize state from the server (prize mode, each player's pick and ready)
+ * @param {Event} e
+ */
+RoomRepository.prototype.onPrizes = function(e)
+{
+    if (!this.room) { return; }
+
+    this.room.prizeMode = e.detail.prizeMode;
+
+    for (var data, player, i = e.detail.players.length - 1; i >= 0; i--) {
+        data   = e.detail.players[i];
+        player = this.room.players.getById(data.id);
+        if (player) {
+            player.pick = data.pick;
+            player.toggleReady(data.ready);
+        }
+    }
+
+    this.emit('room:prizes', e.detail);
+};
+
+/**
  * Press Rematch
  */
 RoomRepository.prototype.requestRematch = function()
@@ -9187,6 +9421,8 @@ RoomRepository.prototype.onJoinRoom = function(e)
             data.player.color,
             data.player.ready
         );
+
+    player.pick = data.player.pick || null;
 
     if (this.room.addPlayer(player)) {
         this.emit('player:join', {player: player});
@@ -9479,6 +9715,7 @@ function RoomsRepository(client)
     this.onRoomPlayers    = this.onRoomPlayers.bind(this);
     this.onRoomGame       = this.onRoomGame.bind(this);
     this.onRoomConfigOpen = this.onRoomConfigOpen.bind(this);
+    this.onRoomPrize      = this.onRoomPrize.bind(this);
 }
 
 RoomsRepository.prototype = Object.create(EventEmitter.prototype);
@@ -9494,6 +9731,7 @@ RoomsRepository.prototype.attachEvents = function()
     this.client.on('room:players', this.onRoomPlayers);
     this.client.on('room:game', this.onRoomGame);
     this.client.on('room:config:open', this.onRoomConfigOpen);
+    this.client.on('room:prize', this.onRoomPrize);
 };
 
 /**
@@ -9506,6 +9744,7 @@ RoomsRepository.prototype.detachEvents = function()
     this.client.off('room:players', this.onRoomPlayers);
     this.client.off('room:game', this.onRoomGame);
     this.client.off('room:config:open', this.onRoomConfigOpen);
+    this.client.off('room:prize', this.onRoomPrize);
 };
 
 /**
@@ -9547,6 +9786,10 @@ RoomsRepository.prototype.create = function(name, callback, options)
         data.password = options.password;
     }
 
+    if (options && options.prizeMode) {
+        data.prizeMode = options.prizeMode;
+    }
+
     this.client.addEvent('room:create', data, callback);
 };
 
@@ -9571,7 +9814,26 @@ RoomsRepository.prototype.findByCode = function(code, password, callback)
  */
 RoomsRepository.prototype.createRoom = function(data)
 {
-    return new RoomListItem(data.name, data.players,  data.game, data.open, data.code);
+    var room = new RoomListItem(data.name, data.players,  data.game, data.open, data.code);
+
+    room.prizeMode = data.prizeMode || null;
+
+    return room;
+};
+
+/**
+ * A room's prize changed (1v1: the host of a fixed-prize room changed it)
+ *
+ * @param {Event} e
+ */
+RoomsRepository.prototype.onRoomPrize = function(e)
+{
+    var room = this.get(e.detail.name);
+
+    if (room) {
+        room.prizeMode = e.detail.prizeMode;
+        this.emit('room:players', room);
+    }
 };
 
 // EVENTS:
@@ -10058,7 +10320,14 @@ Chat.prototype.talk = function()
  */
 Chat.prototype.onTalk = function(e)
 {
-    if (typeof(e.detail) !== 'undefined' && e.detail) {
+    if (typeof(e.detail) !== 'undefined' && e.detail && e.detail.system) {
+        // A line the room itself wrote (e.g. "Sam changed the prize to $10").
+        var line = new Message(e.detail.creation);
+        line.type    = 'system';
+        line.icon    = 'icon-megaphone';
+        line.content = e.detail.content;
+        this.addMessage(line);
+    } else if (typeof(e.detail) !== 'undefined' && e.detail) {
         this.addMessage(new MessagePlayer(
             e.detail.client,
             e.detail.content,

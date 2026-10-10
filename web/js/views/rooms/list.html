@@ -19,7 +19,22 @@
     </div>
 
     <div class="container" style="margin-bottom:0;padding-bottom:0;">
-        <div class="kurver-prize-bar">
+        <!-- 1v1 (KURVER_MODE): two prizes, amounts from kurver-money.js -->
+        <div class="kurver-prize-bar" ng-if="kurver1v1">
+          <div class="kpb-entry">
+            <div class="kpb-entry-n">1v1</div>
+            <div class="kpb-entry-l">Winner takes it</div>
+          </div>
+          <div class="kpb-scale">
+            <div class="kpb-scale-t">Pick your prize</div>
+            <div class="kpb-tiers">
+              <div class="kpb-tier">Entry {{ feeOf(5) }} <b>Win $5</b></div>
+              <div class="kpb-tier">Entry {{ feeOf(10) }} <b>Win $10</b></div>
+              <div class="kpb-tier">or <b>open to both</b></div>
+            </div>
+          </div>
+        </div>
+        <div class="kurver-prize-bar" ng-if="!kurver1v1">
           <div class="kpb-entry">
             <div class="kpb-entry-n">$2</div>
             <div class="kpb-entry-l">Entry</div>

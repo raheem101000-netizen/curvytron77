@@ -33,6 +33,11 @@ RoomRepository.prototype.create = function(name, options)
     // Shareable match code (same format as FIFA/Puz's Match ID: 9 characters).
     room.code = this.getUniqueCode();
 
+    // 1v1 prize setting ("5" | "10" | "both"); the prize of the last game
+    // launched here (a rematch in a "both" room starts both players on it).
+    room.prizeMode = options && options.prizeMode ? options.prizeMode : null;
+    room.lastPrize = null;
+
     // Private: the host's own password, set before the room is listed.
     if (options && typeof(options.password) === 'string' && options.password.length) {
         room.config.setPrivate(options.password);

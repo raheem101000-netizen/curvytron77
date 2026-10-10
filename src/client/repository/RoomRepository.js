@@ -35,6 +35,7 @@ function RoomRepository(client)
     this.onClientAway     = this.onClientAway.bind(this);
     this.onPlayerClient   = this.onPlayerClient.bind(this);
     this.onRematch        = this.onRematch.bind(this);
+    this.onPrizes         = this.onPrizes.bind(this);
     this.forwardEvent     = this.forwardEvent.bind(this);
 }
 
@@ -68,6 +69,7 @@ RoomRepository.prototype.attachEvents = function()
     this.client.on('client:away', this.onClientAway);
     this.client.on('player:client', this.onPlayerClient);
     this.client.on('room:rematch', this.onRematch);
+    this.client.on('room:prizes', this.onPrizes);
 };
 
 /**
@@ -97,6 +99,7 @@ RoomRepository.prototype.detachEvents = function()
     this.client.off('client:away', this.onClientAway);
     this.client.off('player:client', this.onPlayerClient);
     this.client.off('room:rematch', this.onRematch);
+    this.client.off('room:prizes', this.onPrizes);
 };
 
 /**
@@ -106,7 +109,7 @@ RoomRepository.prototype.detachEvents = function()
  * @param {String} password
  * @param {Function} callback
  */
-RoomRepository.prototype.join = function(name, password, callback)
+RoomRepository.prototype.join = function(name, password, callback, prize)
 {
     var repository = this;
 
@@ -114,7 +117,7 @@ RoomRepository.prototype.join = function(name, password, callback)
         return callback({success: true, room: repository.room});
     }
 
-    this.client.addEvent('room:join', {name: name, password: password}, function (result) {
+    this.client.addEvent('room:join', {name: name, password: password, prize: prize || null}, function (result) {
         if (result.success) {
             var clients  = repository.createClients(result.clients),
                 master   = clients.getById(result.master),
@@ -174,6 +177,7 @@ RoomRepository.prototype.createRoom = function(data, clients)
         length = data.players.length;
 
     room.code = data.code || null;
+    room.prizeMode = data.prizeMode || null;
 
     for (var client, i =  0; i < length; i++) {
         client = clients.getById(data.players[i].client);
@@ -186,6 +190,7 @@ RoomRepository.prototype.createRoom = function(data, clients)
                 data.players[i].color,
                 data.players[i].ready
             ));
+            room.players.getById(data.players[i].id).pick = data.players[i].pick || null;
         } else {
             console.error('Could not find a client:', data.players[i].client, clients);
         }
@@ -364,6 +369,39 @@ RoomRepository.prototype.setReady = function(player, callback)
 };
 
 /**
+ * 1v1: change the prize (your own pick; in a fixed-prize room, the host
+ * changes the room's prize)
+ * @param {Number} prize
+ * @param {Function} callback
+ */
+RoomRepository.prototype.setPrize = function(prize, callback)
+{
+    this.client.addEvent('room:prize', {prize: prize}, callback);
+};
+
+/**
+ * 1v1 prize state from the server (prize mode, each player's pick and ready)
+ * @param {Event} e
+ */
+RoomRepository.prototype.onPrizes = function(e)
+{
+    if (!this.room) { return; }
+
+    this.room.prizeMode = e.detail.prizeMode;
+
+    for (var data, player, i = e.detail.players.length - 1; i >= 0; i--) {
+        data   = e.detail.players[i];
+        player = this.room.players.getById(data.id);
+        if (player) {
+            player.pick = data.pick;
+            player.toggleReady(data.ready);
+        }
+    }
+
+    this.emit('room:prizes', e.detail);
+};
+
+/**
  * Press Rematch
  */
 RoomRepository.prototype.requestRematch = function()
@@ -473,6 +511,8 @@ RoomRepository.prototype.onJoinRoom = function(e)
             data.player.color,
             data.player.ready
         );
+
+    player.pick = data.player.pick || null;
 
     if (this.room.addPlayer(player)) {
         this.emit('player:join', {player: player});

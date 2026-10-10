@@ -94,6 +94,10 @@
                         </td>
                         <td class="col-player">
                             <input type="text" ng-model="player.name" ng-blur="setName(player)" class="form-control player-name" name="name" maxlength="{{ ::nameMaxLength }}" />
+                            <div class="kurver-prize-cell" ng-if="kurver1v1">
+                                <span class="kurver-prize-state" ng-class="{ready: player.ready, open: !player.pick}">{{ prizeState(player) }}</span>
+                                <button type="button" class="kurver-change" ng-repeat="p in prizeChoices(player)" ng-click="setPrize(p)">{{ player.pick ? 'Change' : '$' + p }}</button>
+                            </div>
                         </td>
                         <td class="col-color">
                             <span class="line-color-preview" style="width:32px;height:32px;border-radius:50%;display:inline-block;background-color:{{ player.color }};border:2px solid rgba(255,255,255,0.3);"></span>
@@ -108,7 +112,7 @@
                             </button>
                         </td>
                         <td class="col-ready">
-                            <div class="player-ready local" ng-click="setReady(player)" ng-class="{ ready: player.ready }" ng-style="rematch ? {opacity: 0.4, 'pointer-events': 'none'} : {}">
+                            <div class="player-ready local" ng-if="!kurver1v1 || agreedPrize()" ng-click="setReady(player)" ng-class="{ ready: player.ready }" ng-style="rematch ? {opacity: 0.4, 'pointer-events': 'none'} : {}">
                                 <span>
                                     <span ng-if="!player.ready">Ready?</span>
                                     <span ng-if="player.ready" class="icon-check success"></span>
@@ -128,6 +132,9 @@
                         </td>
                         <td class="col-player">
                             <p class="player-name">{{ player.name }}<span ng-if="player.client.away" style="margin-left:8px;font-size:11px;letter-spacing:1px;color:#ffb020;">RECONNECTING…</span></p>
+                            <div class="kurver-prize-cell" ng-if="kurver1v1">
+                                <span class="kurver-prize-state" ng-class="{ready: player.ready, open: !player.pick}">{{ prizeState(player) }}</span>
+                            </div>
                         </td>
                         <td class="col-color">
                             <span class="line-color-preview" style="background-color: {{ player.color }};"></span>
@@ -145,6 +152,7 @@
                     </tr>
                 </tbody>
             </table>
+            <p class="kurver-prize-status" id="kurver-prize-status" ng-if="kurver1v1 && prizeStatus()" ng-class="{ok: agreedPrize()}">{{ prizeStatus() }}</p>
 
             <div class="room-chat" ng-controller="ChatController">
                 <div class="chat-wrapper" ng-include="'js/views/chat/chat.html'" onload="chatLoaded()"></div>
@@ -156,8 +164,8 @@
 
         <!-- Start (host), below the chat as in FIFA -->
         <div class="kurver-room-actions">
-        <button type="button" class="btn start-now" ng-click="launch()" ng-if="(master || launching) && !rematch" ng-disabled="master && !launching && !othersReady()" title="{{ (master && !launching && !othersReady()) ? 'Waiting for every player to be ready' : '' }}">
-            <span class="label" ng-if="!launching">{{ othersReady() ? 'Start now!' : 'Waiting for players…' }}</span>
+        <button type="button" class="btn start-now" ng-click="launch()" ng-if="(master || launching) && !rematch" ng-disabled="master && !launching && !canStart()" title="{{ (master && !launching && !canStart()) ? (kurver1v1 ? 'Both players must be Ready on the same prize' : 'Waiting for every player to be ready') : '' }}">
+            <span class="label" ng-if="!launching">{{ canStart() ? 'Start now!' : 'Waiting for players…' }}</span>
             <span id="starter-count" ng-if="launching">{{ launching }}</span>
         </button>
         </div>
@@ -179,4 +187,26 @@
 .kurver-room-panel .top-right-form{float:none;width:100%;margin:6px 0 10px;}
 .kurver-room-actions{margin-top:14px;}
 .kurver-room-actions .start-now{float:none;width:100%;margin:0;}
+/* 1v1 prize state per player (same wording as FIFA) */
+.kurver-prize-cell{display:flex;flex-wrap:wrap;align-items:center;gap:5px;margin-top:5px;font-family:'Space Grotesk',sans-serif;font-weight:400;}
+/* Fit every column (Ready included) in the 380px room panel. */
+.kurver-room-panel .room-players > tbody > tr > td{height:auto;max-height:none;padding-top:8px;padding-bottom:8px;}
+.kurver-room-panel .room-players th.col-color{font-size:0;}
+.kurver-room-panel .room-players th.col-ready{padding-left:0;}
+.kurver-room-panel .room-players .col-remove{width:22px;padding-left:0;padding-right:0;}
+.kurver-room-panel .room-players .col-color{width:44px !important;min-width:44px;}
+.kurver-room-panel .room-players th{font-size:11px;letter-spacing:0;}
+.kurver-room-panel .room-players .col-player .player-name{max-width:96px;}
+.kurver-room-panel .room-players .col-player{padding-right:4px;}
+.kurver-room-panel .kurver-prize-cell{max-width:96px;}
+.kurver-room-panel .room-players .col-keys{width:auto;white-space:nowrap;padding-left:2px;padding-right:2px;}
+.kurver-room-panel .room-players .col-keys .control{margin:0 1px;padding-left:9px;padding-right:9px;}
+.kurver-room-panel .room-players .col-ready{width:66px;}
+.kurver-room-panel .room-players .player-ready{padding:0 8px;text-align:center;}
+.kurver-prize-state{font-size:11px;font-weight:700;padding:3px 8px;border-radius:6px;white-space:nowrap;background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.85);border:1px solid rgba(255,255,255,0.18);}
+.kurver-prize-state.open{background:rgba(255,210,74,0.08);color:#FFD24A;border-color:rgba(255,210,74,0.45);}
+.kurver-prize-state.ready{background:rgba(76,255,108,0.12);color:#4CFF6C;border-color:rgba(76,255,108,0.4);}
+.kurver-change{background:none;border:1px solid rgba(180,80,255,0.55);color:#c98bff;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;}
+.kurver-prize-status{font-family:'Space Grotesk',sans-serif;font-size:13px;color:rgba(255,255,255,0.6);margin:6px 0 4px;}
+.kurver-prize-status.ok{color:#4CFF6C;}
 </style>

@@ -27,6 +27,8 @@ function RoomController($scope, $routeParams, $location, client, repository, pro
     this.hasTouch       = typeof(window.ontouchstart) !== 'undefined';
     this.name           = decodeURIComponent($routeParams.name);
     this.password       = typeof(search.password) !== 'undefined' ? search.password : null;
+    // 1v1, joining a room open to both: the prize picked on the list.
+    this.prize          = typeof(search.prize) !== 'undefined' ? Number(search.prize) : null;
     this.repository     = repository;
     this.controlSynchro = false;
     // Phones and tablets get the touch controls automatically.
@@ -81,6 +83,15 @@ function RoomController($scope, $routeParams, $location, client, repository, pro
     this.$scope.rematchMine       = false;
     this.onKicked                 = this.onKicked.bind(this);
     this.$scope.prizeLabel        = this.prizeLabel;
+    // 1v1 prize choice (same rules and wording as FIFA).
+    this.$scope.kurver            = RoomsController.config();
+    this.$scope.kurver1v1         = this.$scope.kurver.mode === '1v1';
+    this.$scope.canStart          = this.canStart.bind(this);
+    this.$scope.agreedPrize       = this.agreedPrize.bind(this);
+    this.$scope.prizeState        = this.prizeState.bind(this);
+    this.$scope.prizeStatus       = this.prizeStatus.bind(this);
+    this.$scope.prizeChoices      = this.prizeChoices.bind(this);
+    this.$scope.setPrize          = this.setPrize.bind(this);
     this.$scope.nameMaxLength     = Player.prototype.maxLength;
     this.$scope.colorMaxLength    = Player.prototype.colorMaxLength;
     this.$scope.hasTouch          = this.hasTouch;
@@ -137,7 +148,7 @@ RoomController.prototype.joinRoom = function()
     }
 
     this.profile.off('close', this.joinRoom);
-    this.repository.join(this.name, this.password, this.onJoined);
+    this.repository.join(this.name, this.password, this.onJoined, this.prize);
 };
 
 /**
@@ -159,6 +170,10 @@ RoomController.prototype.onJoined = function(result)
         console.error('Could not join room %s: %s', result.name, result.error);
         if (/^Unknown room/.test(result.error || '')) {
             this.showToast('That match is no longer open.');
+        } else if (/This match is full/.test(result.error || '')) {
+            this.showToast('This match is full');
+        } else if (/PICK_PRIZE/.test(result.error || '')) {
+            this.showToast('The host is open to both. Pick the prize');
         }
         this.goHome();
         this.applyScope();
@@ -201,6 +216,7 @@ RoomController.prototype.attachEvents = function()
     this.repository.on('client:away', this.requestDigestScope);
     this.repository.on('player:client', this.onPlayerClient);
     this.repository.on('room:rematch', this.onRematch);
+    this.repository.on('room:prizes', this.requestDigestScope);
     this.setRematch(this.repository.rematch);
     this.client.on('room:kicked', this.onKicked);
     this.client.on('room:superseded', this.onSuperseded);
@@ -230,6 +246,7 @@ RoomController.prototype.detachEvents = function()
     this.repository.off('client:away', this.requestDigestScope);
     this.repository.off('player:client', this.onPlayerClient);
     this.repository.off('room:rematch', this.onRematch);
+    this.repository.off('room:prizes', this.requestDigestScope);
     this.client.off('room:kicked', this.onKicked);
     this.client.off('room:superseded', this.onSuperseded);
 
@@ -255,9 +272,10 @@ RoomController.prototype.launch = function()
 {
     if (this.$scope.rematch) { return; }
 
-    // "Start now!" needs every other player ready (the server checks too);
-    // pressing it during the countdown cancels, as before.
-    if (this.repository.amIMaster() && (this.$scope.launching || this.othersReady())) {
+    // "Start now!" needs every other player ready (1v1: both Ready on the
+    // same prize; the server checks too); pressing it during the countdown
+    // cancels, as before.
+    if (this.repository.amIMaster() && (this.$scope.launching || this.canStart())) {
         this.repository.launch();
     }
 };
@@ -275,6 +293,113 @@ RoomController.prototype.othersReady = function()
     return this.room.players.items.every(function (player) {
         return (player.client && player.client.master) || (player.ready && !(player.client && player.client.away));
     });
+};
+
+/**
+ * Can the host start? Multiplayer: every other player ready. 1v1: both
+ * players Ready on the same prize and both here.
+ *
+ * @return {Boolean}
+ */
+RoomController.prototype.canStart = function()
+{
+    if (!this.$scope.kurver1v1) { return this.othersReady(); }
+    if (!this.room || this.agreedPrize() === null) { return false; }
+
+    return this.room.players.items.every(function (player) {
+        return player.ready && !(player.client && player.client.away);
+    });
+};
+
+/**
+ * 1v1: the prize both players want (null: fewer than two, a pick missing,
+ * or different picks)
+ *
+ * @return {Number|null}
+ */
+RoomController.prototype.agreedPrize = function()
+{
+    var players = this.room ? this.room.players.items : [];
+
+    if (players.length !== 2 || !players[0].pick) { return null; }
+
+    return players[1].pick === players[0].pick ? players[0].pick : null;
+};
+
+/**
+ * 1v1: a player's prize state next to their name
+ *
+ * @param {Player} player
+ *
+ * @return {String}
+ */
+RoomController.prototype.prizeState = function(player)
+{
+    if (!player.pick) { return 'Open to both'; }
+
+    return player.ready ? 'Ready · $' + player.pick : 'Wants $' + player.pick;
+};
+
+/**
+ * 1v1: the prize controls on your own name — both prizes while you have no
+ * pick in a room open to both, otherwise Change (to the other prize). In a
+ * fixed-prize room only the host gets Change.
+ *
+ * @param {Player} player
+ *
+ * @return {Array} prizes to offer as buttons ([] for none)
+ */
+RoomController.prototype.prizeChoices = function(player)
+{
+    if (!this.room || !player.local || this.$scope.rematch) { return []; }
+
+    var both = this.room.prizeMode === 'both';
+
+    if (!both && !this.repository.amIMaster()) { return []; }
+    if (both && !player.pick) { return [5, 10]; }
+
+    return [player.pick === 10 ? 5 : 10];
+};
+
+/**
+ * 1v1: change the prize
+ *
+ * @param {Number} prize
+ */
+RoomController.prototype.setPrize = function(prize)
+{
+    var controller = this;
+
+    this.repository.setPrize(prize, function (result) {
+        if (result && !result.success && result.error) { controller.showToast(result.error); }
+    });
+};
+
+/**
+ * 1v1 status line under the players
+ *
+ * @return {String}
+ */
+RoomController.prototype.prizeStatus = function()
+{
+    if (!this.room || this.$scope.rematch) { return ''; }
+
+    var players = this.room.players.items,
+        missing = players.filter(function (player) { return !player.pick; })[0],
+        agreed  = this.agreedPrize(),
+        prizes  = this.$scope.kurver.prizes,
+        host, joiner;
+
+    if (missing) { return 'Waiting for ' + missing.name + ' to choose a prize.'; }
+    if (players.length < 2) { return 'Waiting for an opponent.'; }
+
+    host   = players.filter(function (player) { return player.client && player.client.master; })[0] || players[0];
+    joiner = players.filter(function (player) { return player !== host; })[0];
+
+    if (agreed === null) { return 'Not agreed yet: ' + host.name + ' wants $' + host.pick + ', ' + joiner.name + ' wants $' + joiner.pick + '.'; }
+    if (players.every(function (player) { return player.ready; })) { return 'Both ready. Entry $' + ((prizes[agreed] || {}).entryFee || '?') + ' each.'; }
+
+    return 'Agreed on $' + agreed + '. Press Ready.';
 };
 
 /**
@@ -315,7 +440,7 @@ RoomController.prototype.onRematch = function(e)
     this.setRematch(rematch);
 
     if (rematch && rematch.accepted) {
-        this.showToast('Rematch on — press Ready');
+        this.showToast(this.$scope.kurver1v1 ? 'Rematch on — agree on the prize and press Ready.' : 'Rematch on — press Ready');
     } else if (rematch && rematch.cancelled) {
         this.showToast(rematch.cancelled);
     }
@@ -591,6 +716,9 @@ RoomController.prototype.setReady = function(player)
 
     if (!player.local) { return; }
 
+    // 1v1: Ready only once both want the same prize (the server checks too).
+    if (this.$scope.kurver1v1 && this.agreedPrize() === null) { return; }
+
     // One-way for players (the host starts instead): already ready → nothing to do.
     if (player.ready && !this.repository.amIMaster()) { return; }
 
@@ -844,6 +972,12 @@ RoomController.prototype.toggleParameters = function()
 RoomController.prototype.prizeLabel = function()
 {
     var count = this.room ? this.room.players.items.length : 0;
+
+    if (this.$scope.kurver1v1) {
+        var agreed = this.agreedPrize(),
+            mode   = this.room ? this.room.prizeMode : null;
+        return '1v1 — Prize: ' + (agreed ? '$' + agreed : mode === 'both' ? '$5 or $10' : mode ? '$' + mode : '');
+    }
 
     // Same rule the server pays with (kurver-money.js prize()):
     // 3 players → $5, otherwise $2 × (n − 1); nothing to show while it's $0.

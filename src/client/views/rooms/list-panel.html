@@ -17,7 +17,13 @@
         <table id="rooms" class="rooms table table-hover v-align-middle" ng-if="!rooms.isEmpty()">
             <tbody>
                 <tr ng-repeat="room in rooms.items track by room.name" ng-if="!room.game" ng-click="join(room)" class="room" ng-class="{private: !room.open}">
-                    <td class="room-name">{{ ::room.name }}</td>
+                    <td class="room-name">{{ ::room.name }}
+                        <div class="kurver-prize-slot" ng-if="kurver1v1">
+                            <span class="kurver-prize-tag" ng-if="kurver1v1 && room.prizeMode === '5'">$5</span>
+                            <span class="kurver-prize-tag gold" ng-if="kurver1v1 && room.prizeMode === '10'">$10</span>
+                            <span class="kurver-prize-both" ng-if="kurver1v1 && room.prizeMode === 'both'"><b>OPEN TO BOTH</b><span>$5 or $10</span></span>
+                        </div>
+                    </td>
                     <td class="room-nb-players">
                         <ng-pluralize count="room.players" when="{'0': 'No player', 'one': '1 player', 'other': '{} players'}"/>
                     </td>
@@ -29,7 +35,13 @@
                     </td>
                 </tr>
                 <tr ng-repeat="room in rooms.items track by room.name" ng-if="room.game" ng-click="join(room)" class="room in-game" ng-class="{private: !room.open}">
-                    <td class="room-name">{{ ::room.name }}</td>
+                    <td class="room-name">{{ ::room.name }}
+                        <div class="kurver-prize-slot" ng-if="kurver1v1">
+                            <span class="kurver-prize-tag" ng-if="kurver1v1 && room.prizeMode === '5'">$5</span>
+                            <span class="kurver-prize-tag gold" ng-if="kurver1v1 && room.prizeMode === '10'">$10</span>
+                            <span class="kurver-prize-both" ng-if="kurver1v1 && room.prizeMode === 'both'"><b>OPEN TO BOTH</b><span>$5 or $10</span></span>
+                        </div>
+                    </td>
                     <td class="room-nb-players">
                         <ng-pluralize count="room.players" when="{'0': 'No player', 'one': '1 player', 'other': '{} players'}"/>
                     </td>
@@ -58,6 +70,14 @@
                 <label for="kurver-create-password">PASSWORD</label>
                 <input type="text" id="kurver-create-password" ng-model="createForm.password" maxlength="{{ ::passwordMaxLength }}" placeholder="Match password" autocomplete="off"/>
             </div>
+            <div ng-if="kurver1v1">
+                <label>PRIZE</label>
+                <div class="km-prizes" id="kurver-create-prizes">
+                    <button type="button" data-mode="5" ng-class="{active: createForm.prizeMode === '5'}" ng-click="createForm.prizeMode = '5'; createForm.error = ''"><span>Win $5</span><small>Entry {{ feeOf(5) }}</small></button>
+                    <button type="button" data-mode="10" class="gold" ng-class="{active: createForm.prizeMode === '10'}" ng-click="createForm.prizeMode = '10'; createForm.error = ''"><span>Win $10</span><small>Entry {{ feeOf(10) }}</small></button>
+                    <button type="button" data-mode="both" class="gold" ng-class="{active: createForm.prizeMode === 'both'}" ng-click="createForm.prizeMode = 'both'; createForm.error = ''"><span>Open to both</span><small>Agree on $5 or $10 in the room</small></button>
+                </div>
+            </div>
             <p class="km-note" ng-if="createForm.type === 'public'">Listed in the lobby for anyone to join.</p>
             <p class="km-note" ng-if="createForm.type === 'private'">Listed with a lock. Players need the password to join.</p>
             <div class="km-error" id="kurver-create-error">{{ createForm.error }}</div>
@@ -84,7 +104,37 @@
         </form>
     </div>
 
+    <!-- Pick the prize (1v1: joining a room open to both) -->
+    <div class="kurver-modal-bg" ng-if="pickForm.visible" ng-click="backdropClose($event)">
+        <div class="kurver-modal" id="kurver-pick-modal">
+            <h3>PICK THE PRIZE</h3>
+            <p class="km-pick-msg">The host is open to both. Pick the prize</p>
+            <div class="km-prizes">
+                <button type="button" data-pick="5" ng-click="pickPrize(5)"><span>Win $5</span><small>Entry {{ feeOf(5) }}</small></button>
+                <button type="button" data-pick="10" class="gold" ng-click="pickPrize(10)"><span>Win $10</span><small>Entry {{ feeOf(10) }}</small></button>
+            </div>
+            <div class="km-btns">
+                <button type="button" class="km-ghost" style="flex:1;" ng-click="closeModals()">Cancel</button>
+            </div>
+        </div>
+    </div>
+
 <style>
+/* 1v1 prize (same tags and wording as FIFA's lobby) */
+.kurver-prize-slot{margin-top:6px;}
+/* The room rows are light, so the tags use dark ink: plain $5, gold $10, and a
+   gold-outlined "open to both" badge that reads differently from $10. */
+.kurver-prize-tag{display:inline-block;font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:700;padding:3px 10px;border-radius:6px;border:1px solid rgba(0,0,0,0.3);color:#1a1a1a;background:rgba(255,255,255,0.7);white-space:nowrap;vertical-align:middle;}
+.kurver-prize-tag.gold{color:#5a3f00;border-color:#d9a400;background:#ffd24a;}
+.kurver-prize-both{display:inline-flex;flex-direction:column;align-items:center;font-family:'Space Grotesk',sans-serif;border:2px solid #d9a400;border-radius:6px;padding:3px 8px;color:#7a5600;background:rgba(255,255,255,0.75);line-height:1.2;white-space:nowrap;vertical-align:middle;}
+.kurver-prize-both b{font-size:10px;font-weight:700;letter-spacing:1px;}
+.kurver-prize-both span{font-size:11px;font-weight:600;color:#7a5600;}
+.km-prizes{display:flex;flex-direction:column;gap:8px;}
+.km-prizes button{display:flex;justify-content:space-between;align-items:center;padding:11px 14px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.05);color:rgba(255,255,255,0.75);cursor:pointer;font-weight:700;font-family:inherit;text-align:left;}
+.km-prizes button small{font-size:11px;font-weight:500;opacity:.8;}
+.km-prizes button.active{border-color:#b450ff;background:rgba(180,80,255,0.18);color:#fff;}
+.km-prizes button.gold.active{border-color:rgba(255,210,74,0.6);background:rgba(255,210,74,0.12);color:#FFD24A;}
+.km-pick-msg{font-size:14px;color:rgba(255,255,255,0.75);margin:0 0 14px;}
 .kurver-lobby-actions{float:right;display:flex;gap:8px;align-items:center;position:relative;z-index:2;}
 .kla-btn{font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:700;letter-spacing:.5px;border-radius:8px;padding:9px 16px;cursor:pointer;border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.05);color:#fff;}
 .kla-create{background:#b450ff;border-color:#b450ff;color:#fff;}

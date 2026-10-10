@@ -17,6 +17,7 @@ function RoomsController(repository)
     this.onRoomPlayer     = this.onRoomPlayer.bind(this);
     this.onRoomGame       = this.onRoomGame.bind(this);
     this.onRoomConfigOpen = this.onRoomConfigOpen.bind(this);
+    this.onRoomPrize      = this.onRoomPrize.bind(this);
     this.detach           = this.detach.bind(this);
 
     this.callbacks = {
@@ -129,11 +130,17 @@ RoomsController.prototype.onCreateRoom = function(client, data, callback)
         return callback({success: false, error: 'Enter a password for a private match.'});
     }
 
+    var prizeMode = KurverMoney.isOneVOne() ? KurverMoney.asPrizeMode(data.prizeMode) : null;
+
+    if (KurverMoney.isOneVOne() && !prizeMode) {
+        return callback({success: false, error: 'Pick a prize first'});
+    }
+
     if (this.repository.get(name)) {
         return callback({success: false, error: 'A match called "' + name + '" already exists. Pick another name.'});
     }
 
-    var room = this.repository.create(name, {password: priv ? password : null});
+    var room = this.repository.create(name, {password: priv ? password : null, prizeMode: prizeMode});
 
     callback(room ? {success: true, room: room.serialize(false)} : {success: false, error: 'Could not create the match.'});
 
@@ -199,7 +206,13 @@ RoomsController.prototype.onFindByCode = function(client, data, callback)
         return callback({success: false, error: password ? 'Wrong password.' : 'This match is private. Enter its password.'});
     }
 
-    callback({success: true, name: room.name, open: room.config.open});
+    if (KurverMoney.isOneVOne() && room.players.count() >= 2) {
+        return callback({success: false, error: 'This match is full'});
+    }
+
+    // A room open to both: the page asks for the joiner's pick first.
+    callback({success: true, name: room.name, open: room.config.open, prizeMode: room.prizeMode || null,
+        needsPick: KurverMoney.isOneVOne() && room.prizeMode === 'both' && room.players.count() > 0});
 };
 
 /**
@@ -228,6 +241,21 @@ RoomsController.prototype.onJoinRoom = function(client, data, callback)
         return callback({success: false, error: 'You were removed from this room by the host.'});
     }
 
+    // 1v1: two seats. A fixed-prize room: joining means agreeing to it. A room
+    // open to both: the joiner brings a pick (the page asks first).
+    if (KurverMoney.isOneVOne() && !room.controller.hasSeat(client.userId)) {
+        if (room.players.count() >= 2) {
+            return callback({success: false, error: 'This match is full'});
+        }
+        if (room.prizeMode === 'both' && room.players.count() > 0) {
+            var pick = KurverMoney.asPrize(data.prize);
+            if (!pick) {
+                return callback({success: false, error: 'PICK_PRIZE: The host is open to both. Pick the prize', pickPrize: true});
+            }
+            client.prizePick = pick;
+        }
+    }
+
     room.controller.attach(client, callback);
 };
 
@@ -245,6 +273,7 @@ RoomsController.prototype.onRoomOpen = function(data)
     room.on('player:join', this.onRoomPlayer);
     room.on('player:leave', this.onRoomPlayer);
     room.config.on('room:config:open', this.onRoomConfigOpen);
+    room.on('prize:mode', this.onRoomPrize);
 
     this.socketGroup.addEvent('room:open', room.serialize(false));
 };
@@ -263,6 +292,7 @@ RoomsController.prototype.onRoomClose = function(data)
     room.removeListener('player:join', this.onRoomPlayer);
     room.removeListener('player:leave', this.onRoomPlayer);
     room.config.on('room:config:open', this.onRoomConfigOpen);
+    room.removeListener('prize:mode', this.onRoomPrize);
 
     this.socketGroup.addEvent('room:close', {name: room.name});
 };
@@ -275,6 +305,16 @@ RoomsController.prototype.onRoomClose = function(data)
 RoomsController.prototype.onRoomConfigOpen = function(data)
 {
     this.socketGroup.addEvent('room:config:open', {name: data.room.name, open: data.open});
+};
+
+/**
+ * A fixed-prize room's host changed its prize: the list tag follows.
+ *
+ * @param {Object} data
+ */
+RoomsController.prototype.onRoomPrize = function(data)
+{
+    this.socketGroup.addEvent('room:prize', {name: data.room.name, prizeMode: data.room.prizeMode || null});
 };
 
 /**
