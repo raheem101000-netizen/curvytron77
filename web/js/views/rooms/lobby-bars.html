@@ -1,0 +1,26 @@
+<!-- Top bar + "playing as" bar, as in Pong's lobby. The back link (index.html)
+     and the account badge (profile link) are placed into these bars by CSS. -->
+<div class="kl-nav">
+    <div class="kl-nav-left"><span class="kl-back-slot"></span><div class="kl-logo">KURVER</div></div>
+    <div class="kl-nav-right">MULTIPLAYER LOBBY</div>
+</div>
+<div class="kl-name-bar">
+    <label>PLAYING AS</label>
+    <span class="kl-name-slot"></span>
+    <!-- Prizes (1v1: two prizes from kurver-money.js; multiplayer: $2 entry) -->
+    <div class="kurver-prize-bar" ng-if="kurver1v1">
+        <span class="kpb-entry"><span class="kpb-entry-n">1v1</span> <span class="kpb-entry-l">Winner takes it</span></span>
+        <span class="kpb-scale-t">Pick your prize</span>
+        <span class="kpb-tier">Entry ${{ kurver.prizes[5].entryFee }} <b>Win $5</b></span>
+        <span class="kpb-tier">Entry ${{ kurver.prizes[10].entryFee }} <b>Win $10</b></span>
+        <span class="kpb-tier">or <b>open to both</b></span>
+    </div>
+    <div class="kurver-prize-bar" ng-if="!kurver1v1">
+        <span class="kpb-entry"><span class="kpb-entry-n">$2</span> <span class="kpb-entry-l">Entry</span></span>
+        <span class="kpb-scale-t">More players, bigger prize</span>
+        <span class="kpb-tier">3p <b>$5</b></span>
+        <span class="kpb-tier">4p <b>$7</b></span>
+        <span class="kpb-tier">5p <b>$9</b></span>
+        <span class="kpb-tier">6+ <b>$10</b></span>
+    </div>
+</div>

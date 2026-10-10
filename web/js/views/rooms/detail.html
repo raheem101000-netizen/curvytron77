@@ -1,212 +1,275 @@
-<section>
-    <!-- Same layout as FIFA's lobby: open rooms left, this room right (one
-         column, list first, at <=700px). -->
+<section class="kl-lobby">
+    <!-- Same page as Pong's / FIFA's lobby: open matches left, this match right
+         (one column, list first, at <=700px). -->
+    <ng-include src="'js/views/rooms/lobby-bars.html'"></ng-include>
+
+    <div class="kl-container">
     <div class="kurver-layout">
     <div ng-controller="RoomsController"><ng-include src="'js/views/rooms/list-panel.html'"></ng-include></div>
-    <div class="room kurver-panel kurver-room-panel">
-        <h2 class="header">
-            {{ ::room.name }}
-            <i class="icon-params" ng-click="toggleParameters()" ng-class="{'active': displayParameters}"></i>
-        </h2>
+    <div class="kurver-panel kurver-room-panel">
+        <div class="kl-panel-head">
+            <span class="kl-panel-title">{{ ::room.name }}<span class="kl-private" ng-if="!room.config.open"><i class="icon-lock"></i> PRIVATE</span></span>
+            <div class="kl-head-right">
+                <i class="icon-params" title="Match settings" ng-click="toggleParameters()" ng-class="{'active': displayParameters}"></i>
+                <a class="kl-leave" href="#/">Leave</a>
+            </div>
+        </div>
 
+        <div class="kl-room-body">
         <div id="room-parameters" ng-controller="RoomConfigController" ng-if="displayParameters">
             <ng-include src="'js/views/rooms/parameters.html'"></ng-include>
         </div>
 
-        <div class="kurver-rematch" ng-if="rematch" style="margin:0 0 14px;padding:10px 14px;border-radius:10px;background:rgba(255,180,0,0.1);border:1px solid rgba(255,180,0,0.4);color:#FFB400;font-weight:700;">
-            <span ng-if="rematchMine">Waiting for {{ rematch.waiting.join(', ') }} to accept…</span>
-            <span ng-if="!rematchMine">{{ rematch.names.join(', ') }} wants a rematch</span>
-            <button type="button" class="btn btn-hero" ng-if="!rematchMine" ng-click="requestRematch()" style="margin-left:12px;">Rematch</button>
-        </div>
-
-        <form ng-submit="submitAddPlayer()" class="top-right-form" name="addPlayer">
-            <button type="submit" id="submit"><span><i class="icon-plus"></i></span></button>
-            <input type="text" id="add-user-name" ng-model="username" class="form-control" name="username" placeholder="Add a local player" maxlength="{{ ::nameMaxLength }}" />
-            <div class="clearfix"></div>
-        </form>
-
-        <h3>
-            <p class="count">
-                <ng-pluralize count="room.players.items.length" when="{
-                    '0': 'No player',
-                    'one': '1 player',
-                    'other': '{} players'}"
-                />
-            </p>
-            <p class="prize-counter">{{ prizeLabel() }}</p>
-        </h3>
-        <div class="clearfix"></div>
-
         <div class="kurver-code-box" ng-if="room.code">
-            <div class="kcb-label">MATCH CODE: friends enter it in “Join with code”</div>
+            <div class="kcb-label">MATCH CODE</div>
             <div class="kcb-row">
                 <span class="kcb-code" id="kurver-match-code">{{ room.code }}</span>
                 <button type="button" class="kcb-copy" id="kurver-copy-code" ng-click="copyCode($event)">COPY CODE</button>
             </div>
+            <div class="kcb-hint">Friends enter it in “Join with code”.</div>
             <div class="kcb-pass" id="kurver-code-pass" ng-if="!room.config.open && room.config.password">Private match. Friends also need the password: <b>{{ room.config.password }}</b></div>
         </div>
-        <style>
-        .kurver-code-box{margin:10px 0 14px;padding:12px 16px;background:rgba(80,200,255,0.07);border:1px solid rgba(80,200,255,0.35);border-radius:10px;font-family:'Space Grotesk',sans-serif;}
-        .kcb-label{font-size:11px;letter-spacing:1.5px;color:rgba(120,210,255,0.75);margin-bottom:6px;}
-        .kcb-row{display:flex;align-items:center;gap:12px;}
-        .kcb-code{flex:1;font-family:monospace;font-size:24px;font-weight:700;letter-spacing:2px;color:#fff;user-select:all;word-break:break-all;}
-        .kcb-copy{background:#50c8ff;color:#06121c;border:none;border-radius:6px;padding:8px 14px;font-weight:700;font-size:12px;cursor:pointer;}
-        .kcb-pass{font-size:12px;color:rgba(255,255,255,0.55);margin-top:8px;}
-        .kcb-pass b{color:#fff;}
-        </style>
+
+        <!-- Entry fee and prize (FIFA's ENTRY FEE / PER WIN boxes) -->
+        <div class="kl-stakes" ng-if="kurver1v1">
+            <div class="kl-stake"><div class="kl-stake-label">ENTRY FEE</div><div class="kl-stake-val">{{ agreedPrize() ? '$' + kurver.prizes[agreedPrize()].entryFee : room.prizeMode === 'both' ? '$' + kurver.prizes[5].entryFee + ' / $' + kurver.prizes[10].entryFee : room.prizeMode ? '$' + kurver.prizes[room.prizeMode].entryFee : '—' }}</div></div>
+            <div class="kl-stake"><div class="kl-stake-label">PER WIN</div><div class="kl-stake-val">{{ agreedPrize() ? '$' + agreedPrize() : room.prizeMode === 'both' ? '$5 or $10' : room.prizeMode ? '$' + room.prizeMode : '—' }}</div></div>
+        </div>
+        <div class="kl-stakes" ng-if="!kurver1v1">
+            <div class="kl-stake"><div class="kl-stake-label">ENTRY FEE</div><div class="kl-stake-val">$2</div></div>
+            <div class="kl-stake"><div class="kl-stake-label">PRIZE</div><div class="kl-stake-val prize-counter">{{ prizeLabel() }}</div></div>
+        </div>
+
+        <div class="kurver-rematch" ng-if="rematch">
+            <span ng-if="rematchMine">Waiting for {{ rematch.waiting.join(', ') }} to accept…</span>
+            <span ng-if="!rematchMine">{{ rematch.names.join(', ') }} wants a rematch</span>
+            <button type="button" ng-if="!rematchMine" ng-click="requestRematch()">REMATCH</button>
+        </div>
+
+        <p class="kl-players-count">
+            <ng-pluralize count="room.players.items.length" when="{
+                '0': 'No player',
+                'one': '1 player',
+                'other': '{} players'}"
+            />
+        </p>
 
         <div class="room-details">
-
-            <div ng-if="autoTouch" class="touch">
-                <h5>📱 Touch controls are on — tap the left or right side of the screen to turn.</h5>
-            </div>
-            <div ng-if="hasTouch && !autoTouch" class="touch">
-                <h5>Are you playing on a smartphone? </h5>
-                <button ng-click="setTouch()" class="btn btn-default">
-                    Activate the touch controls!
-                </button>
-            </div>
-            <table class="room-players table v-align-middle">
+            <table class="room-players">
                 <thead>
                     <tr>
-                        <th class="col-remove"></th>
-                        <th class="col-icon"></th>
-                        <th class="col-player">Name</th>
-                        <th class="col-color">Color</th>
-                        <th class="col-keys">Controls</th>
-                        <th class="col-ready">Ready?</th>
+                        <th></th>
+                        <th>NAME</th>
+                        <th class="col-status">STATUS</th>
+                        <th></th>
                     </tr>
                 </thead>
                 <tbody>
                     <tr ng-if="room.players.isEmpty()">
-                        <td colspan="5" class="empty">
+                        <td colspan="4" class="p-empty">
                             Waiting for players...
                         </td>
                     </tr>
                     <tr ng-repeat="player in room.players.items track by player.id | orderBy:'position'" ng-if="player.local" class="local">
-                        <td class="col-remove col-show-hover">
-                            <button type="button" class="btn btn-link btn-sm btn-remove pull-left" ng-click="removePlayer(player)">
-                                <span class="icon-close"></span>
-                            </button>
-                        </td>
-                        <td class="col-icon">
-                            <span ng-if="player.isMaster()" class="icon icon-crown pull-left"></span>
-                        </td>
+                        <td class="col-dot"><span class="line-color-preview" style="background-color: {{ player.color }};"></span></td>
                         <td class="col-player">
-                            <input type="text" ng-model="player.name" ng-blur="setName(player)" class="form-control player-name" name="name" maxlength="{{ ::nameMaxLength }}" />
-                            <div class="kurver-prize-cell" ng-if="kurver1v1">
-                                <span class="kurver-prize-state" ng-class="{ready: player.ready, open: !player.pick}">{{ prizeState(player) }}</span>
+                            <div class="kl-name-line">
+                                <input type="text" ng-model="player.name" ng-blur="setName(player)" class="player-name" name="name" ng-attr-size="{{ (player.name.length || 1) + 1 }}" maxlength="{{ ::nameMaxLength }}" />
+                                <span class="kl-you">(you)</span>
+                            </div>
+                            <div class="kl-keys">
+                                <button class="control"
+                                    ng-repeat="control in ::player.controls track by $index"
+                                    ng-click="control.toggle()"
+                                    ng-class="{ 'active': control.mapper.listening }"
+                                >
+                                    {{ control.mapper.view }}
+                                </button>
+                            </div>
+                        </td>
+                        <td class="col-status">
+                            <span ng-if="player.isMaster()" class="kl-badge kl-host">HOST</span>
+                            <span class="kurver-prize-cell" ng-if="kurver1v1">
+                                <span class="kurver-prize-state kl-badge" ng-class="{ready: player.ready, open: !player.pick}">{{ prizeState(player) }}</span>
                                 <button type="button" class="kurver-change" ng-repeat="p in prizeChoices(player)" ng-click="setPrize(p)">{{ player.pick ? 'Change' : '$' + p }}</button>
-                            </div>
+                            </span>
+                            <span ng-if="!kurver1v1" class="kl-badge" ng-class="player.ready ? 'kl-ready-yes' : 'kl-ready-no'">{{ player.ready ? 'Ready' : 'Not ready' }}</span>
                         </td>
-                        <td class="col-color">
-                            <span class="line-color-preview" style="width:32px;height:32px;border-radius:50%;display:inline-block;background-color:{{ player.color }};border:2px solid rgba(255,255,255,0.3);"></span>
-                        </td>
-                        <td class="col-keys">
-                            <button class="btn btn-default control"
-                                ng-repeat="control in ::player.controls track by $index"
-                                ng-click="control.toggle()"
-                                ng-class="{ 'active': control.mapper.listening }"
-                            >
-                                {{ control.mapper.view }}
-                            </button>
-                        </td>
-                        <td class="col-ready">
-                            <div class="player-ready local" ng-if="!kurver1v1 || agreedPrize()" ng-click="setReady(player)" ng-class="{ ready: player.ready }" ng-style="rematch ? {opacity: 0.4, 'pointer-events': 'none'} : {}">
-                                <span>
-                                    <span ng-if="!player.ready">Ready?</span>
-                                    <span ng-if="player.ready" class="icon-check success"></span>
-                                </span>
-                            </div>
+                        <td class="col-kick">
+                            <button type="button" class="kl-kick kl-remove" title="Remove" ng-click="removePlayer(player)">✕</button>
                         </td>
                     </tr>
                     <tr ng-repeat="player in room.players.items track by player.id | orderBy:'position'" ng-if="!player.local">
-                        <td class="col-remove {{ player.vote ? 'active' : '' }}">
-                            <button type="button" class="btn btn-link btn-sm btn-remove pull-left" ng-if="master" title="Remove from room" ng-click="kickPlayer(player)">
+                        <td class="col-dot"><span class="line-color-preview" style="background-color: {{ player.color }};"></span></td>
+                        <td class="col-player">
+                            <p class="player-name">{{ player.name }}</p>
+                        </td>
+                        <td class="col-status">
+                            <span ng-if="player.isMaster()" class="kl-badge kl-host">HOST</span>
+                            <span class="kurver-prize-cell" ng-if="kurver1v1">
+                                <span class="kurver-prize-state kl-badge" ng-class="{ready: player.ready, open: !player.pick}">{{ prizeState(player) }}</span>
+                            </span>
+                            <span ng-if="!kurver1v1" class="kl-badge" ng-class="player.ready ? 'kl-ready-yes' : 'kl-ready-no'">{{ player.ready ? 'Ready' : 'Not ready' }}</span>
+                            <span ng-if="!player.client.active || player.client.away" class="kl-badge kl-away" title="{{ player.client.away ? 'Reconnecting…' : 'Inactive' }}">{{ player.client.away ? 'Reconnecting…' : 'Away' }}</span>
+                        </td>
+                        <td class="col-kick {{ player.vote ? 'active' : '' }}">
+                            <button type="button" class="kl-kick" ng-if="master" title="Remove from room" ng-click="kickPlayer(player)">
                                 <span class="icon-kick {{ player.kicked ? 'kicked' : '' }}"></span>
                             </button>
                         </td>
-                        <td class="col-icon">
-                            <span ng-if="!player.client.active || player.client.away" class="icon inactive icon-clock pull-left" title="{{ player.client.away ? 'Reconnecting…' : 'Inactive' }}"></span>
-                            <span ng-if="player.isMaster()" class="icon icon-crown pull-left"></span>
-                        </td>
-                        <td class="col-player">
-                            <p class="player-name">{{ player.name }}<span ng-if="player.client.away" style="margin-left:8px;font-size:11px;letter-spacing:1px;color:#ffb020;">RECONNECTING…</span></p>
-                            <div class="kurver-prize-cell" ng-if="kurver1v1">
-                                <span class="kurver-prize-state" ng-class="{ready: player.ready, open: !player.pick}">{{ prizeState(player) }}</span>
-                            </div>
-                        </td>
-                        <td class="col-color">
-                            <span class="line-color-preview" style="background-color: {{ player.color }};"></span>
-                            <p>{{ player.color }}</p>
-                        </td>
-                        <td class="col-keys"></td>
-                        <td class="col-ready">
-                            <div class="player-ready" ng-class="{ ready: player.ready }">
-                                <span>
-                                    <i ng-if="player.ready" class="icon-check success"></i>
-                                    <i ng-if="!player.ready" class="icon-close success"></i>
-                                </span>
-                            </div>
-                        </td>
+                    </tr>
+                    <tr ng-if="kurver1v1 && room.players.items.length === 1">
+                        <td colspan="4" class="p-empty">Waiting for opponent...</td>
                     </tr>
                 </tbody>
             </table>
             <p class="kurver-prize-status" id="kurver-prize-status" ng-if="kurver1v1 && prizeStatus()" ng-class="{ok: agreedPrize()}">{{ prizeStatus() }}</p>
 
+            <form ng-submit="submitAddPlayer()" class="kl-add-player" name="addPlayer">
+                <input type="text" id="add-user-name" ng-model="username" name="username" placeholder="Add a local player" maxlength="{{ ::nameMaxLength }}" />
+                <button type="submit" id="submit">+ Add</button>
+            </form>
+
+            <div ng-if="autoTouch" class="kl-touch">📱 Touch controls are on — tap the left or right side of the screen to turn.</div>
+            <div ng-if="hasTouch && !autoTouch" class="kl-touch">
+                Are you playing on a smartphone?
+                <button ng-click="setTouch()" class="kl-touch-btn">Activate the touch controls!</button>
+            </div>
+
             <div class="room-chat" ng-controller="ChatController">
                 <div class="chat-wrapper" ng-include="'js/views/chat/chat.html'" onload="chatLoaded()"></div>
             </div>
-
-            <div class="clearfix"></div>
-
         </div>
 
-        <!-- Start (host), below the chat as in FIFA -->
+        <!-- Ready (each local player, once the prize is agreed in 1v1) and
+             Start (host), side by side below the chat as in Pong -->
         <div class="kurver-room-actions">
-        <button type="button" class="btn start-now" ng-click="launch()" ng-if="(master || launching) && !rematch" ng-disabled="master && !launching && !canStart()" title="{{ (master && !launching && !canStart()) ? (kurver1v1 ? 'Both players must be Ready on the same prize' : 'Waiting for every player to be ready') : '' }}">
-            <span class="label" ng-if="!launching">{{ canStart() ? 'Start now!' : 'Waiting for players…' }}</span>
-            <span id="starter-count" ng-if="launching">{{ launching }}</span>
-        </button>
+            <button type="button" class="kl-btn-ready player-ready local"
+                ng-repeat="player in room.players.items track by player.id"
+                ng-if="player.local && (!kurver1v1 || agreedPrize())"
+                ng-click="setReady(player)"
+                ng-class="{ ready: player.ready }"
+                ng-style="rematch ? {opacity: 0.4, 'pointer-events': 'none'} : {}"
+            >{{ player.ready ? '✓ Ready' : 'Ready?' }}{{ agreedPrize() ? ' · $' + agreedPrize() : '' }}{{ (room.players.items | filter:{local: true}).length > 1 ? ' · ' + player.name : '' }}</button>
+            <button type="button" class="start-now" ng-click="launch()" ng-if="(master || launching) && !rematch" ng-disabled="master && !launching && !canStart()" title="{{ (master && !launching && !canStart()) ? (kurver1v1 ? 'Both players must be Ready on the same prize' : 'Waiting for every player to be ready') : '' }}">
+                <span class="label" ng-if="!launching">{{ canStart() ? 'Start now!' : 'Waiting for players…' }}</span>
+                <span id="starter-count" ng-if="launching">{{ launching }}</span>
+            </button>
         </div>
+        </div>
+    </div>
     </div>
     </div>
 </section>
 
 <style>
-/* The room in FIFA's right-hand panel: one column — players, chat, Start. */
-.kurver-room-panel{margin:0;}
-.kurver-room-panel .header{margin-top:0;font-size:20px;}
-.kurver-room-panel .room-details{padding-top:10px;margin-top:0;}
-.kurver-room-panel .room-players{width:100%;float:none;padding:0;}
-.kurver-room-panel .room-players .col-color p{display:none;}
-.kurver-room-panel .room-players .col-keys{width:auto;}
-.kurver-room-panel .room-chat{width:100%;float:none;padding:0;}
-.kurver-room-panel .room-chat .chat-wrapper{margin-top:14px;}
-.kurver-room-panel .room-chat .chat-wrapper .feed{height:180px;max-height:180px;}
-.kurver-room-panel .top-right-form{float:none;width:100%;margin:6px 0 10px;}
-.kurver-room-actions{margin-top:14px;}
-.kurver-room-actions .start-now{float:none;width:100%;margin:0;}
-/* 1v1 prize state per player (same wording as FIFA) */
-.kurver-prize-cell{display:flex;flex-wrap:wrap;align-items:center;gap:5px;margin-top:5px;font-family:'Space Grotesk',sans-serif;font-weight:400;}
-/* Fit every column (Ready included) in the 380px room panel. */
-.kurver-room-panel .room-players > tbody > tr > td{height:auto;max-height:none;padding-top:8px;padding-bottom:8px;}
-.kurver-room-panel .room-players th.col-color{font-size:0;}
-.kurver-room-panel .room-players th.col-ready{padding-left:0;}
-.kurver-room-panel .room-players .col-remove{width:22px;padding-left:0;padding-right:0;}
-.kurver-room-panel .room-players .col-color{width:44px !important;min-width:44px;}
-.kurver-room-panel .room-players th{font-size:11px;letter-spacing:0;}
-.kurver-room-panel .room-players .col-player .player-name{max-width:96px;}
-.kurver-room-panel .room-players .col-player{padding-right:4px;}
-.kurver-room-panel .kurver-prize-cell{max-width:96px;}
-.kurver-room-panel .room-players .col-keys{width:auto;white-space:nowrap;padding-left:2px;padding-right:2px;}
-.kurver-room-panel .room-players .col-keys .control{margin:0 1px;padding-left:9px;padding-right:9px;}
-.kurver-room-panel .room-players .col-ready{width:66px;}
-.kurver-room-panel .room-players .player-ready{padding:0 8px;text-align:center;}
-.kurver-prize-state{font-size:11px;font-weight:700;padding:3px 8px;border-radius:6px;white-space:nowrap;background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.85);border:1px solid rgba(255,255,255,0.18);}
+/* The match (right panel) — Pong's room panel in Kurver's colours. */
+.kl-head-right{display:flex;align-items:center;gap:12px;}
+.kurver-room-panel .icon-params{font-size:18px;color:rgba(255,255,255,0.45);cursor:pointer;transition:color .15s;}
+.kurver-room-panel .icon-params:hover,.kurver-room-panel .icon-params.active{color:#fff;}
+.kl-leave{background:transparent;border:1px solid rgba(255,68,68,0.3);color:rgba(255,68,68,0.6) !important;padding:6px 14px;font-size:13px;border-radius:8px;cursor:pointer;text-decoration:none !important;line-height:1.3;}
+.kl-leave:hover{border-color:#ff4444;color:#ff4444 !important;}
+.kl-room-body{padding:14px 18px 18px;}
+#room-parameters{margin-bottom:16px;}
+
+/* Match code (Pong's .room-code-wrap) */
+.kurver-code-box{margin-bottom:16px;}
+.kcb-label{font-size:10px;color:rgba(255,255,255,0.3);letter-spacing:2px;margin-bottom:4px;}
+.kcb-row{display:flex;align-items:center;gap:12px;}
+.kcb-code{flex:1;min-width:0;font-family:monospace !important;font-size:26px;font-weight:700;letter-spacing:2px;color:#50c8ff;user-select:all;word-break:break-all;line-height:1.2;}
+.kcb-copy{background:rgba(80,200,255,0.12);color:#50c8ff;border:1px solid rgba(80,200,255,0.45);border-radius:6px;padding:5px 10px;font-weight:700;font-size:11px;letter-spacing:.5px;cursor:pointer;}
+.kcb-hint,.kcb-pass{font-size:11px;color:rgba(255,255,255,0.45);margin-top:4px;}
+.kcb-pass b{color:#fff;}
+
+/* Entry fee / prize (FIFA's .stakes) */
+.kl-stakes{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px;}
+.kl-stake{border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:8px 10px;text-align:center;}
+.kl-stake-label{line-height:1.4;font-size:10px;color:rgba(255,255,255,0.4);letter-spacing:1px;margin-bottom:3px;}
+.kl-stake-val{line-height:1.3;font-size:15px;font-weight:700;color:#fff;}
+.kl-stake-val.prize-counter{font-size:13px;}
+
+/* Rematch (Pong's .rematch-box) */
+.kurver-rematch{margin:0 0 18px;padding:12px 16px;border-radius:10px;background:rgba(180,80,255,0.1);border:1px solid rgba(180,80,255,0.4);color:#e6ccff;font-size:14px;font-weight:600;}
+.kurver-rematch span{color:inherit;}
+.kurver-rematch button{margin-left:12px;background:#b450ff;color:#fff;border:none;padding:8px 18px;font-size:13px;font-weight:700;border-radius:8px;cursor:pointer;}
+
+/* Players (Pong's #players-table) */
+.kl-players-count{font-size:14px;color:rgba(255,255,255,0.4) !important;margin:0 0 12px;line-height:1.4;}
+.kurver-room-panel .room-details{padding:0;margin:0;}
+.room-players{width:100%;border-collapse:collapse;margin:0 0 24px;background:none;}
+.room-players thead th{font-size:11px;color:rgba(255,255,255,0.25) !important;letter-spacing:2px;padding:8px 12px;text-align:left;border-bottom:1px solid rgba(255,255,255,0.07);font-weight:500;}
+.room-players tbody td{padding:12px;font-size:14px;line-height:1.4;border-bottom:1px solid rgba(255,255,255,0.04);vertical-align:middle;color:#fff;height:auto;}
+.room-players tbody tr{background:none !important;}
+.room-players th.col-status,.room-players td.col-status{text-align:right;}
+.room-players .col-dot{width:20px;padding-right:0;}
+.room-players .line-color-preview{width:12px;height:12px;border-radius:50%;display:inline-block;vertical-align:middle;}
+.room-players .col-player{padding-left:8px;padding-right:4px;}
+.room-players p.player-name{margin:0;color:#fff;font-size:14px;line-height:1.4;}
+.kl-name-line{display:flex;align-items:center;gap:6px;}
+.room-players input.player-name{field-sizing:content;width:auto;max-width:110px;min-width:40px;height:auto;padding:2px 6px !important;margin:0 0 0 -6px;font-size:14px;line-height:1.4;color:#fff !important;background:transparent !important;border:1px solid transparent !important;border-radius:6px !important;}
+.room-players input.player-name:hover,.room-players input.player-name:focus{border-color:rgba(255,255,255,0.15) !important;background:rgba(255,255,255,0.05) !important;}
+.kl-you{color:rgba(255,255,255,0.3);font-size:11px;white-space:nowrap;}
+.kl-keys{display:flex;gap:4px;margin-top:5px;}
+.kl-keys .control{min-width:26px;height:22px;padding:0 6px;border-radius:6px;border:1px solid rgba(180,80,255,0.45);background:rgba(180,80,255,0.12);color:#c98bff;font-size:11px;font-weight:700;line-height:20px;cursor:pointer;}
+.kl-keys .control.active{background:#b450ff;color:#fff;}
+.room-players .col-kick{width:38px;padding-left:4px;padding-right:0;text-align:right;}
+.kl-kick{background:none;border:1px solid rgba(255,85,85,0.35);color:#ff6b6b;border-radius:6px;width:26px;height:26px;line-height:22px;font-size:12px;cursor:pointer;padding:0;}
+.kl-kick:hover{background:rgba(255,85,85,0.15);}
+.kl-kick span{font-size:12px;color:inherit;}
+.col-kick.active .kl-kick,.kl-kick .kicked{color:#ffb400;}
+.kl-remove{visibility:hidden;}
+tr.local:hover .kl-remove{visibility:visible;}
+.p-empty{color:rgba(255,255,255,0.2) !important;font-style:italic;padding:16px 12px !important;}
+/* Status badges (Pong's .ready-badge) */
+.kl-badge{display:inline-block;font-size:11px;padding:4px 12px;border-radius:6px;font-weight:600;letter-spacing:1px;margin:2px 0 2px 4px;line-height:1.3;white-space:nowrap;}
+.kl-host{background:rgba(180,80,255,0.15);color:#b450ff;}
+.kl-ready-yes{background:rgba(76,255,108,0.15);color:#4CFF6C;}
+.kl-ready-no{background:rgba(255,255,255,0.05);color:rgba(255,255,255,0.3);}
+.kl-away{background:rgba(255,180,0,0.08);color:#FFB400;}
+.kurver-prize-cell{display:inline;}
+.kurver-prize-state{background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.85);border:1px solid rgba(255,255,255,0.18);}
 .kurver-prize-state.open{background:rgba(255,210,74,0.08);color:#FFD24A;border-color:rgba(255,210,74,0.45);}
-.kurver-prize-state.ready{background:rgba(76,255,108,0.12);color:#4CFF6C;border-color:rgba(76,255,108,0.4);}
-.kurver-change{background:none;border:1px solid rgba(180,80,255,0.55);color:#c98bff;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;}
-.kurver-prize-status{font-family:'Space Grotesk',sans-serif;font-size:13px;color:rgba(255,255,255,0.6);margin:6px 0 4px;}
-.kurver-prize-status.ok{color:#4CFF6C;}
+.kurver-prize-state.ready{background:rgba(76,255,108,0.15);color:#4CFF6C;border-color:transparent;}
+.kurver-change{background:none;border:1px solid rgba(180,80,255,0.5);color:#c98bff;border-radius:6px;padding:3px 8px;margin-left:6px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;line-height:1.3;}
+.kurver-change:hover{background:rgba(180,80,255,0.15);}
+/* Status line (Pong's .prize-status) */
+.kurver-prize-status{font-size:13px;line-height:1.5;color:rgba(255,255,255,0.6) !important;margin:-12px 0 18px;}
+.kurver-prize-status.ok{color:#4CFF6C !important;}
+
+/* Add a local player + touch controls (Kurver only), compact */
+.kl-add-player{display:flex;gap:8px;margin:0 0 16px;}
+.kl-add-player input{flex:1;min-width:0;height:auto;padding:7px 12px;font-size:13px;line-height:1.3;border-radius:8px !important;margin:0;}
+.kl-add-player button{background:transparent;border:1px solid rgba(255,255,255,0.15);color:rgba(255,255,255,0.5);padding:7px 14px;font-size:13px;border-radius:8px;cursor:pointer;}
+.kl-add-player button:hover{border-color:rgba(255,255,255,0.4);color:#fff;}
+.kl-touch{font-size:12px;color:rgba(255,255,255,0.5);margin:0 0 16px;line-height:1.5;}
+.kl-touch-btn{margin-left:6px;background:rgba(80,200,255,0.12);border:1px solid rgba(80,200,255,0.45);color:#50c8ff;border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer;}
+
+/* Chat (Pong's .chat-wrap): messages, then the input row with Send */
+.kurver-room-panel .room-chat{width:100%;float:none;padding:0;margin:0;}
+.kurver-room-panel .room-chat .chat-wrapper{margin:0 0 16px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:12px;overflow:hidden;position:static;height:auto;}
+.kurver-room-panel .room-chat .feed{height:180px;max-height:180px;overflow-y:auto;padding:14px 18px;background:none;display:flex;flex-direction:column;gap:6px;}
+.kurver-room-panel .room-chat .feed .one-message{margin:0;padding:0;font-size:13px;line-height:1.4;color:rgba(255,255,255,0.4);}
+.kurver-room-panel .room-chat .feed .one-message span{font-size:13px;}
+.kurver-room-panel .room-chat .feed .details{display:none;}
+.kurver-room-panel .room-chat .feed .message-name{font-weight:500;}
+.kurver-room-panel .room-chat .feed .message-icon:not(.message-name){display:none;}
+.kurver-room-panel .room-chat .feed .one-message:has(.message-icon:not(.message-name)) .message-content{color:rgba(255,255,255,0.3);font-style:italic;}
+.kurver-room-panel .room-chat .feed .one-message:has(.message-icon:not(.message-name)) .message-content::before{content:'· ';}
+.kurver-room-panel .room-chat .feed .message-content{color:rgba(255,255,255,0.55);}
+.kurver-room-panel .room-chat .action-line{display:flex;gap:8px;padding:10px 14px;border-top:1px solid rgba(255,255,255,0.06);margin:0;background:none;position:static;height:auto;}
+.kurver-room-panel .room-chat .action-line .clearfix{display:none;}
+.kurver-room-panel .room-chat .action-line input{order:1;flex:1;min-width:0;height:auto;float:none;width:auto;background:transparent !important;border:none !important;color:#fff !important;font-size:13px;padding:0 !important;margin:0;box-shadow:none;}
+.kurver-room-panel .room-chat .action-line button{order:2;float:none;position:static;width:auto;height:auto;margin:0;background:transparent !important;border:1px solid rgba(255,255,255,0.15) !important;color:rgba(255,255,255,0.5) !important;padding:9px 18px;font-size:13px;line-height:1.2;border-radius:8px !important;cursor:pointer;transform:none;}
+.kurver-room-panel .room-chat .action-line button:hover{border-color:rgba(255,255,255,0.4) !important;color:#fff !important;opacity:1 !important;}
+.kurver-room-panel .room-chat .action-line button > span{display:none;}
+.kurver-room-panel .room-chat .action-line button::after{content:'Send';font-family:'Space Grotesk',sans-serif;}
+
+/* Ready + Start (Pong's .room-actions / .btn-ready / .btn-start-now) */
+.kurver-room-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+.kl-btn-ready{flex:1;background:#4CFF6C;color:#111;border:none;padding:12px 20px;font-size:14px;font-weight:700;border-radius:8px;cursor:pointer;font-family:'Space Grotesk',sans-serif;}
+.kl-btn-ready:hover{background:#2ecc71;}
+.kl-btn-ready.ready{background:rgba(76,255,108,0.15);color:#4CFF6C;}
+.kurver-room-actions .start-now{flex:1;float:none;width:auto;height:auto;margin:0;background:linear-gradient(to right,#ff8069 0%,#ff6e90 100%);color:#fff;border:none;padding:12px 20px;font-size:15px;font-weight:700;border-radius:10px;cursor:pointer;font-family:'Space Grotesk',sans-serif;line-height:1.3;transform:none;}
+.kurver-room-actions .start-now span{color:inherit;font-size:inherit;}
+.kurver-room-actions .start-now:disabled{background:rgba(255,128,105,0.2);color:rgba(255,255,255,0.3);cursor:not-allowed;}
 </style>

@@ -1,8 +1,8 @@
-<!-- Open rooms (left panel) — same layout as FIFA's lobby: shown on the room
-     list page and beside the room you're in. Uses RoomsController's scope. -->
+<!-- Open matches (left panel) — same layout as Pong's / FIFA's lobby: shown on
+     the match list page and beside the match you're in. Uses RoomsController's scope. -->
     <div class="kurver-panel room-list">
-        <h2 class="header" ng-class="{ 'empty': rooms.isEmpty() }">
-            <span class="title">
+        <div class="kl-panel-head">
+            <span class="kl-panel-title">
                 <ng-pluralize count="rooms.items.length" when="{
                     '0': 'Start by creating a room:',
                     'one': 'You can join 1 room!',
@@ -12,65 +12,58 @@
                 <button type="button" class="kla-btn kla-join" id="kurver-open-join" ng-click="openJoin()">Join with code</button>
                 <button type="button" class="kla-btn kla-create" id="kurver-open-create" ng-click="openCreate()">+ Create match</button>
             </div>
-        </h2>
+        </div>
 
-        <table id="rooms" class="rooms table table-hover v-align-middle" ng-if="!rooms.isEmpty()">
+        <table id="rooms" class="kl-rooms" ng-if="!rooms.isEmpty()">
             <tbody>
                 <tr ng-repeat="room in rooms.items track by room.name" ng-if="!room.game" ng-click="join(room)" class="room" ng-class="{private: !room.open}">
-                    <td class="room-name">{{ ::room.name }}
-                        <div class="kurver-prize-slot" ng-if="kurver1v1">
-                            <span class="kurver-prize-tag" ng-if="kurver1v1 && room.prizeMode === '5'">$5</span>
-                            <span class="kurver-prize-tag gold" ng-if="kurver1v1 && room.prizeMode === '10'">$10</span>
-                            <span class="kurver-prize-both" ng-if="kurver1v1 && room.prizeMode === 'both'"><b>OPEN TO BOTH</b><span>$5 or $10</span></span>
-                        </div>
-                    </td>
+                    <td class="room-name">{{ ::room.name }}<span class="kl-private" ng-if="!room.open"><i class="icon-lock"></i> PRIVATE</span></td>
                     <td class="room-nb-players">
                         <ng-pluralize count="room.players" when="{'0': 'No player', 'one': '1 player', 'other': '{} players'}"/>
                     </td>
                     <td class="room-enter-col">
-                        <i class="icon-lock" ng-if="!room.open"></i>
-                        <div class="room-enter-container">
-                            <p class="room-enter"><span><i class="icon-game"></i> Join</span></p>
-                        </div>
+                        <span class="kurver-prize-slot" ng-if="kurver1v1">
+                            <span class="kurver-prize-tag" ng-if="kurver1v1 && room.prizeMode === '5'">$5</span>
+                            <span class="kurver-prize-tag gold" ng-if="kurver1v1 && room.prizeMode === '10'">$10</span>
+                            <span class="kurver-prize-both" ng-if="kurver1v1 && room.prizeMode === 'both'"><b>OPEN TO BOTH</b><span>$5 or $10</span></span>
+                        </span><span class="kl-enter-btn">Join</span>
                     </td>
                 </tr>
                 <tr ng-repeat="room in rooms.items track by room.name" ng-if="room.game" ng-click="join(room)" class="room in-game" ng-class="{private: !room.open}">
-                    <td class="room-name">{{ ::room.name }}
-                        <div class="kurver-prize-slot" ng-if="kurver1v1">
-                            <span class="kurver-prize-tag" ng-if="kurver1v1 && room.prizeMode === '5'">$5</span>
-                            <span class="kurver-prize-tag gold" ng-if="kurver1v1 && room.prizeMode === '10'">$10</span>
-                            <span class="kurver-prize-both" ng-if="kurver1v1 && room.prizeMode === 'both'"><b>OPEN TO BOTH</b><span>$5 or $10</span></span>
-                        </div>
-                    </td>
+                    <td class="room-name">{{ ::room.name }}<span class="kl-private" ng-if="!room.open"><i class="icon-lock"></i> PRIVATE</span></td>
                     <td class="room-nb-players">
                         <ng-pluralize count="room.players" when="{'0': 'No player', 'one': '1 player', 'other': '{} players'}"/>
                     </td>
                     <td class="room-enter-col">
-                        <i class="icon-lock" ng-if="!room.open"></i>
-                        <div class="room-enter-container">
-                            <p class="room-enter"><span><i class="icon-spectate"></i> Spectate</span></p>
-                        </div>
+                        <span class="kurver-prize-slot" ng-if="kurver1v1">
+                            <span class="kurver-prize-tag" ng-if="kurver1v1 && room.prizeMode === '5'">$5</span>
+                            <span class="kurver-prize-tag gold" ng-if="kurver1v1 && room.prizeMode === '10'">$10</span>
+                            <span class="kurver-prize-both" ng-if="kurver1v1 && room.prizeMode === 'both'"><b>OPEN TO BOTH</b><span>$5 or $10</span></span>
+                        </span><span class="kl-enter-btn spectate">Spectate</span>
                     </td>
                 </tr>
             </tbody>
         </table>
+        <div class="kl-rooms-empty" ng-if="rooms.isEmpty()">No open matches yet.</div>
     </div>
 
-    <!-- Create match (same fields as FIFA / Puz: name, public or private, password) -->
+    <!-- Create match (same layout as Pong's: name, Public/Private, password, prize) -->
     <div class="kurver-modal-bg" ng-if="createForm.visible" ng-click="backdropClose($event)">
         <form class="kurver-modal" id="kurver-create-modal" ng-submit="createRoom()" novalidate>
             <h3>CREATE MATCH</h3>
-            <label for="kurver-create-name">MATCH NAME</label>
-            <input type="text" id="kurver-create-name" ng-model="createForm.name" maxlength="{{ ::roomMaxLength }}" placeholder="e.g. Friday night curves" autocomplete="off"/>
+            <div class="km-field">
+                <label for="kurver-create-name">MATCH NAME</label>
+                <input type="text" id="kurver-create-name" ng-model="createForm.name" maxlength="{{ ::roomMaxLength }}" placeholder="e.g. Friday night curves" autocomplete="off"/>
+            </div>
             <div class="km-toggle">
                 <button type="button" id="kurver-type-public" ng-class="{active: createForm.type === 'public'}" ng-click="createForm.type = 'public'">Public</button>
                 <button type="button" id="kurver-type-private" ng-class="{active: createForm.type === 'private'}" ng-click="createForm.type = 'private'">Private</button>
             </div>
-            <div ng-if="createForm.type === 'private'">
+            <div class="km-field" ng-if="createForm.type === 'private'">
                 <label for="kurver-create-password">PASSWORD</label>
                 <input type="text" id="kurver-create-password" ng-model="createForm.password" maxlength="{{ ::passwordMaxLength }}" placeholder="Match password" autocomplete="off"/>
             </div>
-            <div ng-if="kurver1v1">
+            <div class="km-field" ng-if="kurver1v1">
                 <label>PRIZE</label>
                 <div class="km-prizes" id="kurver-create-prizes">
                     <button type="button" data-mode="5" ng-class="{active: createForm.prizeMode === '5'}" ng-click="createForm.prizeMode = '5'; createForm.error = ''"><span>Win $5</span><small>Entry {{ feeOf(5) }}</small></button>
@@ -92,10 +85,14 @@
     <div class="kurver-modal-bg" ng-if="joinForm.visible" ng-click="backdropClose($event)">
         <form class="kurver-modal" id="kurver-join-modal" ng-submit="joinByCode()" novalidate>
             <h3>{{ joinForm.locked ? 'JOIN PRIVATE MATCH' : 'JOIN WITH CODE' }}</h3>
-            <label for="kurver-join-code">MATCH CODE</label>
-            <input type="text" id="kurver-join-code" ng-model="joinForm.code" placeholder="Paste the match code" autocomplete="off" autocapitalize="off" spellcheck="false" ng-readonly="joinForm.locked"/>
-            <label for="kurver-join-password">{{ joinForm.locked ? 'PASSWORD' : 'PASSWORD (PRIVATE MATCHES ONLY)' }}</label>
-            <input type="password" id="kurver-join-password" ng-model="joinForm.password" maxlength="{{ ::passwordMaxLength }}" placeholder="{{ joinForm.locked ? 'Enter password' : 'Leave blank for public matches' }}"/>
+            <div class="km-field">
+                <label for="kurver-join-code">MATCH CODE</label>
+                <input type="text" id="kurver-join-code" ng-model="joinForm.code" placeholder="Paste the match code" autocomplete="off" autocapitalize="off" spellcheck="false" ng-readonly="joinForm.locked"/>
+            </div>
+            <div class="km-field">
+                <label for="kurver-join-password">{{ joinForm.locked ? 'PASSWORD' : 'PASSWORD (PRIVATE MATCHES ONLY)' }}</label>
+                <input type="password" id="kurver-join-password" ng-model="joinForm.password" maxlength="{{ ::passwordMaxLength }}" placeholder="{{ joinForm.locked ? 'Enter password' : 'Leave blank for public matches' }}"/>
+            </div>
             <div class="km-error" id="kurver-join-error">{{ joinForm.error }}</div>
             <div class="km-btns">
                 <button type="submit" class="km-primary" id="kurver-join-submit" ng-disabled="joinForm.busy">{{ joinForm.busy ? 'Joining…' : 'Join' }}</button>
@@ -113,6 +110,7 @@
                 <button type="button" data-pick="5" ng-click="pickPrize(5)"><span>Win $5</span><small>Entry {{ feeOf(5) }}</small></button>
                 <button type="button" data-pick="10" class="gold" ng-click="pickPrize(10)"><span>Win $10</span><small>Entry {{ feeOf(10) }}</small></button>
             </div>
+            <div class="km-error">{{ pickForm.error }}</div>
             <div class="km-btns">
                 <button type="button" class="km-ghost" style="flex:1;" ng-click="closeModals()">Cancel</button>
             </div>
@@ -120,49 +118,104 @@
     </div>
 
 <style>
-/* 1v1 prize (same tags and wording as FIFA's lobby) */
-.kurver-prize-slot{margin-top:6px;}
-/* The room rows are light, so the tags use dark ink: plain $5, gold $10, and a
-   gold-outlined "open to both" badge that reads differently from $10. */
-.kurver-prize-tag{display:inline-block;font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:700;padding:3px 10px;border-radius:6px;border:1px solid rgba(0,0,0,0.3);color:#1a1a1a;background:rgba(255,255,255,0.7);white-space:nowrap;vertical-align:middle;}
-.kurver-prize-tag.gold{color:#5a3f00;border-color:#d9a400;background:#ffd24a;}
-.kurver-prize-both{display:inline-flex;flex-direction:column;align-items:center;font-family:'Space Grotesk',sans-serif;border:2px solid #d9a400;border-radius:6px;padding:3px 8px;color:#7a5600;background:rgba(255,255,255,0.75);line-height:1.2;white-space:nowrap;vertical-align:middle;}
-.kurver-prize-both b{font-size:10px;font-weight:700;letter-spacing:1px;}
-.kurver-prize-both span{font-size:11px;font-weight:600;color:#7a5600;}
-.km-prizes{display:flex;flex-direction:column;gap:8px;}
-.km-prizes button{display:flex;justify-content:space-between;align-items:center;padding:11px 14px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.05);color:rgba(255,255,255,0.75);cursor:pointer;font-weight:700;font-family:inherit;text-align:left;}
-.km-prizes button small{font-size:11px;font-weight:500;opacity:.8;}
-.km-prizes button.active{border-color:#b450ff;background:rgba(180,80,255,0.18);color:#fff;}
-.km-prizes button.gold.active{border-color:rgba(255,210,74,0.6);background:rgba(255,210,74,0.12);color:#FFD24A;}
-.km-pick-msg{font-size:14px;color:rgba(255,255,255,0.75);margin:0 0 14px;}
-.kurver-lobby-actions{float:right;display:flex;gap:8px;align-items:center;position:relative;z-index:2;}
-.kla-btn{font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:700;letter-spacing:.5px;border-radius:8px;padding:9px 16px;cursor:pointer;border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.05);color:#fff;}
-.kla-create{background:#b450ff;border-color:#b450ff;color:#fff;}
-.kla-join{border-color:#50c8ff;color:#50c8ff;}
-.kurver-modal-bg{position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,0.72);display:flex;align-items:center;justify-content:center;padding:16px;}
-.kurver-modal{width:100%;max-width:400px;background:#14111c;border:1px solid rgba(180,80,255,0.35);border-radius:14px;padding:22px;font-family:'Space Grotesk',sans-serif;color:#fff;}
-.kurver-modal h3{margin:0 0 16px;font-size:16px;letter-spacing:2px;}
-.kurver-modal label{display:block;font-size:11px;color:rgba(255,255,255,0.5);letter-spacing:1px;margin:12px 0 6px;}
-.kurver-modal input{width:100%;box-sizing:border-box;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);border-radius:8px;padding:10px 12px;color:#fff;font-size:15px;outline:none;}
-.kurver-modal input[readonly]{opacity:.6;}
-.km-toggle{display:flex;gap:8px;margin-top:14px;}
-.km-toggle button{flex:1;padding:9px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.05);color:rgba(255,255,255,0.55);cursor:pointer;font-weight:700;font-family:inherit;}
-.km-toggle button.active{border-color:#b450ff;background:rgba(180,80,255,0.18);color:#fff;}
-.km-note{font-size:12px;color:rgba(255,255,255,0.45);margin:10px 0 0;}
-.km-error{font-size:13px;color:#ff5f5f;min-height:18px;margin-top:10px;}
-.km-btns{display:flex;gap:8px;margin-top:12px;}
-.km-btns button{padding:10px 16px;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit;}
-.km-primary{flex:1;background:#b450ff;border:1px solid #b450ff;color:#fff;}
-.km-primary[disabled]{opacity:.5;}
-.km-ghost{background:none;border:1px solid rgba(255,255,255,0.2);color:#fff;}
-@media(max-width:600px){.kurver-lobby-actions{width:100%;margin-top:10px;}.kla-btn{flex:1;}}
-/* FIFA's lobby layout: open rooms left, room right (1fr | 380px, max 1000px);
-   one column, list first, at <=700px. */
-.kurver-layout{max-width:1000px;margin:0 auto;padding:0 15px;display:grid;grid-template-columns:1fr 380px;gap:20px;align-items:start;}
+/* ── Kurver lobby: Pong's / FIFA's lobby layout in Kurver's colours ─────────
+   Kurver: #05050f ground, purple #b450ff, cyan #50c8ff, coral→pink
+   #ff8069→#ff6e90, Space Grotesk. Shared by the match list and the match page
+   (this panel is on both). */
+
+/* The lobby page starts at the top (Kurver's pages are centred flex columns) */
+#main section.kl-lobby{justify-content:flex-start !important;}
+/* Top bar + "playing as" bar (Pong's .nav / .name-bar) */
+.kl-nav{position:relative;line-height:normal;display:flex;align-items:center;justify-content:space-between;padding:14px 32px;border-bottom:1px solid rgba(255,255,255,0.07);background:rgba(5,5,15,0.85);font-family:'Space Grotesk',sans-serif;}
+.kl-nav-left{display:flex;align-items:center;}
+.kl-back-slot{display:inline-block;width:84px;height:26px;}
+.kl-logo{font-size:20px;letter-spacing:8px;font-weight:300;color:#fff;line-height:26px;}
+.kl-nav-right{white-space:nowrap;font-size:11px;color:rgba(255,255,255,0.25);letter-spacing:2px;}
+.kl-name-bar{position:relative;line-height:normal;display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 32px;min-height:54px;background:rgba(5,5,15,0.6);border-bottom:1px solid rgba(255,255,255,0.05);font-family:'Space Grotesk',sans-serif;}
+.kl-name-bar > label{font-size:11px;color:rgba(255,255,255,0.3) !important;letter-spacing:1px;margin:0;font-weight:400;}
+.kl-name-slot{display:inline-block;width:180px;height:33px;}
+/* index.html's back link and the account badge, placed in those bars */
+body:has(.kl-lobby) div:has(> #tenten-back){position:absolute !important;top:14px !important;left:32px !important;height:26px;display:flex;align-items:center;z-index:5 !important;}
+body:has(.kl-lobby) .profile-link{position:absolute;top:65px;left:111px;right:auto;z-index:5;width:180px;height:33px;padding:0 14px;display:flex;align-items:center;gap:8px;text-align:left;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;font-family:'Space Grotesk',sans-serif;font-size:13px;line-height:1;color:#fff;}
+body:has(.kl-lobby) .profile-link .circle{width:10px;height:10px;margin:0;flex:none;}
+body:has(.kl-lobby) .profile-link .name, body:has(.kl-lobby) .profile-link .name span{font-size:13px;color:#fff;font-weight:400;}
+/* Prizes, at the right of the "playing as" bar */
+.kurver-prize-bar{margin-left:auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px;color:rgba(255,255,255,0.45);}
+.kpb-entry-n{font-weight:700;color:#fff;}
+.kpb-entry-l,.kpb-scale-t{font-size:11px;letter-spacing:1px;text-transform:uppercase;color:rgba(255,255,255,0.3);}
+.kpb-scale-t{margin-left:6px;}
+.kpb-tier{border:1px solid rgba(180,80,255,0.3);background:rgba(180,80,255,0.07);border-radius:6px;padding:2px 8px;font-size:11px;color:rgba(255,255,255,0.7);white-space:nowrap;}
+.kpb-tier b{color:#c98bff;}
+
+/* Page + panels (Pong's .container / .layout / .panel) */
+.kl-container{position:relative;width:100%;max-width:1000px;margin:0 auto;padding:24px;font-family:'Space Grotesk',sans-serif;}
+.kurver-layout{display:grid;grid-template-columns:1fr 380px;gap:20px;align-items:start;}
 .kurver-layout > *{min-width:0;}
-.kurver-panel{background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:12px;overflow:hidden;padding:14px 18px;}
-.kurver-panel.room-list .header{margin-top:0;}
-.kurver-panel .kurver-lobby-actions{float:none;margin-top:10px;}
-.kurver-panel-empty{padding:40px 20px;text-align:center;color:rgba(255,255,255,0.25);font-size:13px;font-family:'Space Grotesk',sans-serif;}
-@media(max-width:700px){.kurver-layout{grid-template-columns:1fr;padding:0 10px;}}
+.kurver-panel{background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:12px;overflow:hidden;}
+.kl-panel-head{padding:14px 18px;border-bottom:1px solid rgba(255,255,255,0.07);display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;}
+.kl-panel-title{font-size:12px;font-weight:700;letter-spacing:1px;color:rgba(255,255,255,0.5);text-transform:uppercase;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;line-height:1.4;}
+.kl-panel-title span{font-size:inherit;color:inherit;}
+.kurver-panel-empty{padding:40px 20px;text-align:center;color:rgba(255,255,255,0.25);font-size:13px;}
+@media(max-width:700px){.kl-container{padding:16px;}.kurver-layout{grid-template-columns:1fr;}}
+/* KURVER is longer than PONG: a little less letter-spacing keeps the top bar on one line on a phone */
+@media(max-width:420px){.kl-logo{letter-spacing:3px;}}
+
+/* Create + Join with code (Pong's .pz-header-right / .pz-btn) */
+.kurver-lobby-actions{display:flex;gap:10px;align-items:center;}
+.kla-btn{padding:6px 14px;border-radius:8px;border:none;font-family:'Space Grotesk',sans-serif;font-size:12px;font-weight:600;letter-spacing:.5px;cursor:pointer;line-height:1.5;transition:opacity .15s;}
+.kla-btn:hover{opacity:.85;}
+.kla-join{background:#50c8ff;color:#06121c;}
+.kla-create{background:rgba(255,255,255,0.07);color:rgba(255,255,255,0.7);border:1px solid rgba(255,255,255,0.12);}
+
+/* Open matches (Pong's #rooms-table) */
+.kl-rooms{width:100%;border-collapse:collapse;margin:0;background:none;}
+.kl-rooms tbody tr.room{border-bottom:1px solid rgba(255,255,255,0.05);cursor:pointer;transition:background .1s;background:none;}
+.kl-rooms tbody tr.room:hover{background:rgba(255,255,255,0.03);}
+.kl-rooms tbody tr.room td{padding:14px 16px;font-size:14px;line-height:1.4;color:rgba(255,255,255,0.6);border:none;height:auto;vertical-align:middle;background:none;text-transform:none;}
+.kl-rooms td.room-name{color:#fff;font-weight:500;}
+.kl-rooms td.room-nb-players{font-size:13px;}
+.kl-rooms td.room-nb-players span{font-size:13px;}
+.kl-rooms td.room-enter-col{text-align:right;white-space:normal;}
+.kl-private{margin-left:5px;color:#FFB400;font-size:10px;letter-spacing:.5px;vertical-align:middle;font-weight:600;white-space:nowrap;}
+.kl-private i{font-size:10px;}
+.kl-enter-btn{display:inline-flex;align-items:center;background:rgba(255,128,105,0.13);border:1px solid rgba(255,110,144,0.45);color:#ff8069;padding:7px 18px;border-radius:8px;font-size:13px;font-weight:600;transition:all .15s;vertical-align:middle;line-height:1.3;}
+tr.room:hover .kl-enter-btn{background:rgba(255,128,105,0.24);border-color:#ff6e90;}
+.kl-enter-btn.spectate{background:rgba(255,255,255,0.05);border-color:rgba(255,255,255,0.15);color:rgba(255,255,255,0.4);}
+.kl-rooms-empty{padding:48px 0;text-align:center;color:rgba(255,255,255,0.2);font-size:14px;line-height:2.2;}
+
+/* Prize tags (same as Pong's / FIFA's): plain $5, gold $10, gold-outlined
+   "open to both" — beside Join */
+.kurver-prize-tag{display:inline-block;font-size:12px;font-weight:700;padding:3px 9px;border-radius:6px;border:1px solid rgba(255,255,255,0.2);color:#fff;white-space:nowrap;vertical-align:middle;margin-right:10px;line-height:1.4;}
+.kurver-prize-tag.gold{color:#FFD24A;border-color:rgba(255,210,74,0.6);background:rgba(255,210,74,0.12);}
+.kurver-prize-both{display:inline-flex;flex-direction:column;align-items:center;border:1.5px solid #FFD24A;border-radius:6px;padding:3px 8px;color:#FFD24A;line-height:1.2;white-space:nowrap;vertical-align:middle;margin-right:10px;}
+.kurver-prize-both b{font-size:9px;font-weight:700;letter-spacing:1px;color:#FFD24A;}
+.kurver-prize-both span{font-size:10px;color:rgba(255,210,74,0.75);}
+
+/* Modals (Pong's .pz-modal) */
+.kurver-modal-bg{position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,0.8);display:flex;align-items:center;justify-content:center;padding:0;}
+.kurver-modal{width:100%;max-width:380px;background:#0d0d1a;border:1px solid rgba(255,255,255,0.1);border-radius:14px;padding:28px;font-family:'Space Grotesk',sans-serif;color:#fff;margin:0;}
+.kurver-modal h3{margin:0 0 20px;font-size:12px;font-weight:700;letter-spacing:2px;line-height:1.4;color:#b450ff !important;}
+.km-field{margin-bottom:14px;}
+.km-field label{display:block;font-size:12px;color:rgba(255,255,255,0.5);letter-spacing:.5px;margin:0 0 6px;font-weight:400;line-height:1.4;}
+.kurver-modal input{width:100%;height:auto;box-sizing:border-box;background:rgba(255,255,255,0.06) !important;border:1px solid rgba(255,255,255,0.12) !important;border-radius:8px !important;padding:10px 14px;color:#fff !important;font-size:14px;line-height:1.3;outline:none;margin:0;}
+.kurver-modal input[readonly]{opacity:.6;}
+.km-toggle{display:flex;gap:8px;margin:0 0 14px;}
+.km-toggle button,.km-prizes button{flex:1;padding:9px;border-radius:8px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.05);color:rgba(255,255,255,0.4);cursor:pointer;font-size:13px;font-weight:600;font-family:'Space Grotesk',sans-serif;line-height:1.4;}
+.km-toggle button#kurver-type-public.active{background:rgba(80,200,255,0.15);border-color:#50c8ff;color:#50c8ff;}
+.km-toggle button#kurver-type-private.active{background:rgba(180,80,255,0.2);border-color:rgba(180,80,255,0.5);color:#b450ff;}
+.km-prizes{display:flex;flex-direction:column;gap:8px;}
+.km-prizes button{display:flex;justify-content:space-between;align-items:center;text-align:left;padding:11px 14px;}
+.km-prizes button span{font-size:13px;color:inherit;}
+.km-prizes button small{font-size:11px;font-weight:500;opacity:.8;color:inherit;}
+.km-prizes button.active{background:rgba(180,80,255,0.2);border-color:rgba(180,80,255,0.5);color:#b450ff;}
+.km-prizes button.gold.active{background:rgba(255,210,74,0.12);border-color:rgba(255,210,74,0.6);color:#FFD24A;}
+.km-pick-msg{font-size:13px;color:rgba(255,255,255,0.7) !important;line-height:1.5;margin:0 0 14px;}
+.km-note{font-size:12px;color:rgba(255,255,255,0.35) !important;line-height:1.4;margin:0;}
+.km-error{font-size:12px;color:#FF5555;min-height:16px;margin-top:6px;line-height:1.4;}
+.km-btns{display:flex;gap:8px;margin-top:20px;}
+.km-btns button{padding:9px 18px;border-radius:8px;font-size:13px;font-weight:600;letter-spacing:.5px;cursor:pointer;font-family:'Space Grotesk',sans-serif;line-height:1.5;transition:opacity .15s;}
+.km-btns button:hover{opacity:.85;}
+.km-primary{flex:1;background:#b450ff;border:none;color:#fff;}
+.km-primary[disabled]{opacity:.5;}
+.km-ghost{background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);color:rgba(255,255,255,0.7);}
 </style>

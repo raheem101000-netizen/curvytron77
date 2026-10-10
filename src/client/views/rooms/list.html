@@ -1,72 +1,17 @@
-<section>
-    <div id="intro" class="container intro">
-        <blockquote class="quote">
-            <p>A multiplayer tron-like game... with curves!</p>
-        </blockquote>
-        <div class="tuto">
-            <img src="images/tuto/turn.gif" class="circle" alt="Turning" width="150" height="150">
-            <p class="content">You're always moving. But you can choose to go left or right.</p>
-        </div>
-        <div class="tuto">
-            <img src="images/tuto/death.gif" class="circle" alt="Turning" width="150" height="150">
-            <p class="content">If you hit another player's line or your own: you're dead!</p>
-        </div>
-        <div class="tuto">
-            <img src="images/tuto/bonus.gif" class="circle" alt="Turning" width="150" height="150">
-            <p class="content">There are bonuses on the map that can help you.</p>
-        </div>
-        <div class="clearfix"></div>
-    </div>
+<section class="kl-lobby">
+    <!-- Same page as Pong's / FIFA's lobby: top bar, "playing as" bar, then
+         open matches left and your match right (one column at <=700px). -->
+    <ng-include src="'js/views/rooms/lobby-bars.html'"></ng-include>
 
-    <div class="container" style="margin-bottom:0;padding-bottom:0;">
-        <!-- 1v1 (KURVER_MODE): two prizes, amounts from kurver-money.js -->
-        <div class="kurver-prize-bar" ng-if="kurver1v1">
-          <div class="kpb-entry">
-            <div class="kpb-entry-n">1v1</div>
-            <div class="kpb-entry-l">Winner takes it</div>
-          </div>
-          <div class="kpb-scale">
-            <div class="kpb-scale-t">Pick your prize</div>
-            <div class="kpb-tiers">
-              <div class="kpb-tier">Entry {{ feeOf(5) }} <b>Win $5</b></div>
-              <div class="kpb-tier">Entry {{ feeOf(10) }} <b>Win $10</b></div>
-              <div class="kpb-tier">or <b>open to both</b></div>
-            </div>
-          </div>
-        </div>
-        <div class="kurver-prize-bar" ng-if="!kurver1v1">
-          <div class="kpb-entry">
-            <div class="kpb-entry-n">$2</div>
-            <div class="kpb-entry-l">Entry</div>
-          </div>
-          <div class="kpb-scale">
-            <div class="kpb-scale-t">More players, bigger prize</div>
-            <div class="kpb-tiers">
-              <div class="kpb-tier">3p <b>$5</b></div>
-              <div class="kpb-tier">4p <b>$7</b></div>
-              <div class="kpb-tier">5p <b>$9</b></div>
-              <div class="kpb-tier">6+ <b>$10</b></div>
-            </div>
-          </div>
-        </div>
-    </div>
-
+    <div class="kl-container">
     <div class="kurver-layout">
         <ng-include src="'js/views/rooms/list-panel.html'"></ng-include>
         <div class="kurver-panel">
+            <div class="kl-panel-head">
+                <span class="kl-panel-title">Match</span>
+            </div>
             <div class="kurver-panel-empty">Create or join a match to start</div>
         </div>
     </div>
+    </div>
 </section>
-
-<style>
-.kurver-prize-bar{display:flex;align-items:center;gap:30px;background:linear-gradient(135deg,rgba(180,80,255,0.14),rgba(80,200,255,0.07));border:1px solid rgba(180,80,255,0.3);border-radius:18px;padding:26px 32px;flex-wrap:wrap;margin:10px 0;font-family:'Space Grotesk',sans-serif;}
-.kpb-entry{text-align:center;padding-right:30px;border-right:1px solid rgba(255,255,255,0.14);}
-.kpb-entry-n{font-size:46px;font-weight:700;color:#fff;line-height:1;}
-.kpb-entry-l{font-size:12px;color:rgba(255,255,255,0.45);letter-spacing:1.5px;text-transform:uppercase;margin-top:8px;}
-.kpb-scale{flex:1;min-width:280px;}
-.kpb-scale-t{font-size:13px;color:rgba(255,255,255,0.45);margin-bottom:14px;text-transform:uppercase;letter-spacing:1.5px;}
-.kpb-tiers{display:flex;gap:11px;flex-wrap:wrap;}
-.kpb-tier{background:rgba(255,255,255,0.06);border:1px solid rgba(180,80,255,0.25);border-radius:11px;padding:11px 18px;font-size:16px;color:rgba(255,255,255,0.75);}
-.kpb-tier b{color:#b450ff;font-size:18px;}
-</style>
