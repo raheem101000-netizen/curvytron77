@@ -1119,7 +1119,12 @@ RoomController.prototype.onPlayerLeave = function(data)
 {
     this.socketGroup.addEvent('room:leave', {player: data.player.id});
 
-    if (this.room.isReady()) {
+    // Not when the host has just left: the role passes first (and that
+    // clears Ready), so whoever is left isn't thrown into a game at once.
+    var master = this.roomMaster,
+        hostHere = master && this.room.players.match(function () { return this.client === master; });
+
+    if (this.room.isReady() && hostHere) {
         this.launch();
     }
 };
