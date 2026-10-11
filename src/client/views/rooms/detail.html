@@ -30,12 +30,8 @@
             <div class="kcb-pass" id="kurver-code-pass" ng-if="!room.config.open && room.config.password">Private match. Friends also need the password: <b>{{ room.config.password }}</b></div>
         </div>
 
-        <!-- Entry fee and prize (FIFA's ENTRY FEE / PER WIN boxes) -->
-        <div class="kl-stakes" ng-if="kurver1v1">
-            <div class="kl-stake"><div class="kl-stake-label">ENTRY FEE</div><div class="kl-stake-val">{{ agreedPrize() ? '$' + kurver.prizes[agreedPrize()].entryFee : room.prizeMode === 'both' ? '$' + kurver.prizes[5].entryFee + ' / $' + kurver.prizes[10].entryFee : room.prizeMode ? '$' + kurver.prizes[room.prizeMode].entryFee : '—' }}</div></div>
-            <div class="kl-stake"><div class="kl-stake-label">PER WIN</div><div class="kl-stake-val">{{ agreedPrize() ? '$' + agreedPrize() : room.prizeMode === 'both' ? '$5 or $10' : room.prizeMode ? '$' + room.prizeMode : '—' }}</div></div>
-        </div>
-        <div class="kl-stakes" ng-if="!kurver1v1">
+        <!-- Entry fee and the live prize for the players in the room -->
+        <div class="kl-stakes">
             <div class="kl-stake"><div class="kl-stake-label">ENTRY FEE</div><div class="kl-stake-val">$2</div></div>
             <div class="kl-stake"><div class="kl-stake-label">PRIZE</div><div class="kl-stake-val prize-counter">{{ prizeLabel() }}</div></div>
         </div>
@@ -89,11 +85,7 @@
                         </td>
                         <td class="col-status">
                             <span ng-if="player.isMaster()" class="kl-badge kl-host">HOST</span>
-                            <span class="kurver-prize-cell" ng-if="kurver1v1">
-                                <span class="kurver-prize-state kl-badge" ng-class="{ready: player.ready, open: !player.pick}">{{ prizeState(player) }}</span>
-                                <button type="button" class="kurver-change" ng-repeat="p in prizeChoices(player)" ng-click="setPrize(p)">{{ player.pick ? 'Change' : '$' + p }}</button>
-                            </span>
-                            <span ng-if="!kurver1v1" class="kl-badge" ng-class="player.ready ? 'kl-ready-yes' : 'kl-ready-no'">{{ player.ready ? 'Ready' : 'Not ready' }}</span>
+                            <span class="kl-badge" ng-class="player.ready ? 'kl-ready-yes' : 'kl-ready-no'">{{ player.ready ? 'Ready' : 'Not ready' }}</span>
                         </td>
                         <td class="col-kick">
                             <button type="button" class="kl-kick kl-remove" title="Remove" ng-click="removePlayer(player)">✕</button>
@@ -106,10 +98,7 @@
                         </td>
                         <td class="col-status">
                             <span ng-if="player.isMaster()" class="kl-badge kl-host">HOST</span>
-                            <span class="kurver-prize-cell" ng-if="kurver1v1">
-                                <span class="kurver-prize-state kl-badge" ng-class="{ready: player.ready, open: !player.pick}">{{ prizeState(player) }}</span>
-                            </span>
-                            <span ng-if="!kurver1v1" class="kl-badge" ng-class="player.ready ? 'kl-ready-yes' : 'kl-ready-no'">{{ player.ready ? 'Ready' : 'Not ready' }}</span>
+                            <span class="kl-badge" ng-class="player.ready ? 'kl-ready-yes' : 'kl-ready-no'">{{ player.ready ? 'Ready' : 'Not ready' }}</span>
                             <span ng-if="!player.client.active || player.client.away" class="kl-badge kl-away" title="{{ player.client.away ? 'Reconnecting…' : 'Inactive' }}">{{ player.client.away ? 'Reconnecting…' : 'Away' }}</span>
                         </td>
                         <td class="col-kick {{ player.vote ? 'active' : '' }}">
@@ -118,12 +107,8 @@
                             </button>
                         </td>
                     </tr>
-                    <tr ng-if="kurver1v1 && room.players.items.length === 1">
-                        <td colspan="4" class="p-empty">Waiting for opponent...</td>
-                    </tr>
                 </tbody>
             </table>
-            <p class="kurver-prize-status" id="kurver-prize-status" ng-if="kurver1v1 && prizeStatus()" ng-class="{ok: agreedPrize()}">{{ prizeStatus() }}</p>
 
             <form ng-submit="submitAddPlayer()" class="kl-add-player" name="addPlayer">
                 <input type="text" id="add-user-name" ng-model="username" name="username" placeholder="Add a local player" maxlength="{{ ::nameMaxLength }}" />
@@ -141,18 +126,18 @@
             </div>
         </div>
 
-        <!-- Ready (each local player, once the prize is agreed in 1v1) and
+        <!-- Ready (each local player) and
              Start (host), side by side below the chat as in Pong -->
         <div class="kurver-room-actions">
             <button type="button" class="kl-btn-ready player-ready local"
                 ng-repeat="player in room.players.items track by player.id"
-                ng-if="player.local && (!kurver1v1 || agreedPrize())"
+                ng-if="player.local"
                 ng-click="setReady(player)"
                 ng-class="{ ready: player.ready }"
                 ng-style="rematch ? {opacity: 0.4, 'pointer-events': 'none'} : {}"
-            >{{ player.ready ? '✓ Ready' : 'Ready?' }}{{ agreedPrize() ? ' · $' + agreedPrize() : '' }}{{ (room.players.items | filter:{local: true}).length > 1 ? ' · ' + player.name : '' }}</button>
-            <button type="button" class="start-now" ng-click="launch()" ng-if="(master || launching) && !rematch" ng-disabled="master && !launching && !canStart()" title="{{ (master && !launching && !canStart()) ? (kurver1v1 ? 'Both players must be Ready on the same prize' : 'Waiting for every player to be ready') : '' }}">
-                <span class="label" ng-if="!launching">{{ canStart() ? 'Start now!' : 'Waiting for players…' }}</span>
+            >{{ player.ready ? '✓ Ready' : 'Ready?' }}{{ (room.players.items | filter:{local: true}).length > 1 ? ' · ' + player.name : '' }}</button>
+            <button type="button" class="start-now" ng-click="launch()" ng-if="(master || launching) && !rematch" ng-disabled="master && !launching && !othersReady()" title="{{ (master && !launching && !othersReady()) ? 'Waiting for every player to be ready' : '' }}">
+                <span class="label" ng-if="!launching">{{ othersReady() ? 'Start now!' : 'Waiting for players…' }}</span>
                 <span id="starter-count" ng-if="launching">{{ launching }}</span>
             </button>
         </div>
@@ -226,15 +211,6 @@ tr.local:hover .kl-remove{visibility:visible;}
 .kl-ready-yes{background:rgba(76,255,108,0.15);color:#4CFF6C;}
 .kl-ready-no{background:rgba(255,255,255,0.05);color:rgba(255,255,255,0.3);}
 .kl-away{background:rgba(255,180,0,0.08);color:#FFB400;}
-.kurver-prize-cell{display:inline;}
-.kurver-prize-state{background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.85);border:1px solid rgba(255,255,255,0.18);}
-.kurver-prize-state.open{background:rgba(255,210,74,0.08);color:#FFD24A;border-color:rgba(255,210,74,0.45);}
-.kurver-prize-state.ready{background:rgba(76,255,108,0.15);color:#4CFF6C;border-color:transparent;}
-.kurver-change{background:none;border:1px solid rgba(180,80,255,0.5);color:#c98bff;border-radius:6px;padding:3px 8px;margin-left:6px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;line-height:1.3;}
-.kurver-change:hover{background:rgba(180,80,255,0.15);}
-/* Status line (Pong's .prize-status) */
-.kurver-prize-status{font-size:13px;line-height:1.5;color:rgba(255,255,255,0.6) !important;margin:-12px 0 18px;}
-.kurver-prize-status.ok{color:#4CFF6C !important;}
 
 /* Add a local player + touch controls (Kurver only), compact */
 .kl-add-player{display:flex;gap:8px;margin:0 0 16px;}

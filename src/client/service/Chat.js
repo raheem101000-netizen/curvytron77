@@ -163,7 +163,7 @@ Chat.prototype.talk = function()
 Chat.prototype.onTalk = function(e)
 {
     if (typeof(e.detail) !== 'undefined' && e.detail && e.detail.system) {
-        // A line the room itself wrote (e.g. "Sam changed the prize to $10").
+        // A line the room itself wrote (e.g. "Sam is now the host").
         var line = new Message(e.detail.creation);
         line.type    = 'system';
         line.icon    = 'icon-megaphone';

@@ -23,12 +23,7 @@ function Game(room)
         var uid = room.players.items[p].client.userId;
         if (uid && this.startedUserIds.indexOf(uid) === -1) { this.startedUserIds.push(uid); }
     }
-    // 1v1: the prize both players were Ready on (frozen at launch); the old
-    // multiplayer rooms keep the prize by player count.
-    this.agreedPrize    = KurverMoney.isOneVOne() ? KurverMoney.asPrize(room.lastPrize) : null;
-    this.prizeDollars   = KurverMoney.isOneVOne()
-        ? (this.agreedPrize ? Number(KurverMoney.prizeAmount(this.agreedPrize)) : 0)
-        : KurverMoney.prize(this.startedUserIds.length);
+    this.prizeDollars   = KurverMoney.prize(this.startedUserIds.length);
     this.deathInFrame = false;
 
     this.onPoint = this.onPoint.bind(this);

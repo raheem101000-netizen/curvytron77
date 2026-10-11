@@ -16,7 +16,6 @@ function RoomsRepository(client)
     this.onRoomPlayers    = this.onRoomPlayers.bind(this);
     this.onRoomGame       = this.onRoomGame.bind(this);
     this.onRoomConfigOpen = this.onRoomConfigOpen.bind(this);
-    this.onRoomPrize      = this.onRoomPrize.bind(this);
 }
 
 RoomsRepository.prototype = Object.create(EventEmitter.prototype);
@@ -32,7 +31,6 @@ RoomsRepository.prototype.attachEvents = function()
     this.client.on('room:players', this.onRoomPlayers);
     this.client.on('room:game', this.onRoomGame);
     this.client.on('room:config:open', this.onRoomConfigOpen);
-    this.client.on('room:prize', this.onRoomPrize);
 };
 
 /**
@@ -45,7 +43,6 @@ RoomsRepository.prototype.detachEvents = function()
     this.client.off('room:players', this.onRoomPlayers);
     this.client.off('room:game', this.onRoomGame);
     this.client.off('room:config:open', this.onRoomConfigOpen);
-    this.client.off('room:prize', this.onRoomPrize);
 };
 
 /**
@@ -87,10 +84,6 @@ RoomsRepository.prototype.create = function(name, callback, options)
         data.password = options.password;
     }
 
-    if (options && options.prizeMode) {
-        data.prizeMode = options.prizeMode;
-    }
-
     this.client.addEvent('room:create', data, callback);
 };
 
@@ -115,26 +108,7 @@ RoomsRepository.prototype.findByCode = function(code, password, callback)
  */
 RoomsRepository.prototype.createRoom = function(data)
 {
-    var room = new RoomListItem(data.name, data.players,  data.game, data.open, data.code);
-
-    room.prizeMode = data.prizeMode || null;
-
-    return room;
-};
-
-/**
- * A room's prize changed (1v1: the host of a fixed-prize room changed it)
- *
- * @param {Event} e
- */
-RoomsRepository.prototype.onRoomPrize = function(e)
-{
-    var room = this.get(e.detail.name);
-
-    if (room) {
-        room.prizeMode = e.detail.prizeMode;
-        this.emit('room:players', room);
-    }
+    return new RoomListItem(data.name, data.players,  data.game, data.open, data.code);
 };
 
 // EVENTS:
