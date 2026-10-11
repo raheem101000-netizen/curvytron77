@@ -44,7 +44,8 @@ Chat.prototype.attachEvents = function()
     this.repository.on('room:leave', this.setRoom);
     this.repository.on('vote:new', this.onVoteNew);
     this.repository.on('room:kick', this.onKick);
-    this.repository.on('room:master', this.onRoomMaster);
+    // Host changes come from the server as a chat line ("<name> is now the
+    // host"), kept in the room's history; no local line here.
 };
 
 /**
@@ -57,7 +58,6 @@ Chat.prototype.detachEvents = function()
     this.repository.off('room:leave', this.setRoom);
     this.repository.off('vote:new', this.onVoteNew);
     this.repository.off('room:kick', this.onKick);
-    this.repository.off('room:master', this.onRoomMaster);
 };
 
 /**

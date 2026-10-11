@@ -165,7 +165,8 @@ section.room label {
         <div id="error" ng-if="status === 'disconnected'" class="container text-center">
             <section class="centered">
                 <h3>Reconnecting…</h3>
-                <p>The connection dropped. Your seat in the match is kept for a few minutes.</p>
+                <p ng-if="!inGame">The connection dropped. Your seat in the match is kept for a few minutes.</p>
+                <p ng-if="inGame">The connection dropped during the game. Leaving a game in progress counts as a loss.</p>
                 <button ng-click="reload()" class="btn btn-default">
                     Try again now!
                 </button>

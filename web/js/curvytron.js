@@ -3123,6 +3123,8 @@ CurvytronController.prototype.onConnect = function(e)
  */
 CurvytronController.prototype.onDisconnect = function(e)
 {
+    // Mid-game there is no seat hold: a drop is a loss (the overlay says so).
+    this.$scope.inGame = /^\/game\//.test(this.$location.path());
     document.body.classList.remove('game-mode');
     this.$scope.status = 'disconnected';
     this.digestScope();
@@ -10229,7 +10231,8 @@ Chat.prototype.attachEvents = function()
     this.repository.on('room:leave', this.setRoom);
     this.repository.on('vote:new', this.onVoteNew);
     this.repository.on('room:kick', this.onKick);
-    this.repository.on('room:master', this.onRoomMaster);
+    // Host changes come from the server as a chat line ("<name> is now the
+    // host"), kept in the room's history; no local line here.
 };
 
 /**
@@ -10242,7 +10245,6 @@ Chat.prototype.detachEvents = function()
     this.repository.off('room:leave', this.setRoom);
     this.repository.off('vote:new', this.onVoteNew);
     this.repository.off('room:kick', this.onKick);
-    this.repository.off('room:master', this.onRoomMaster);
 };
 
 /**

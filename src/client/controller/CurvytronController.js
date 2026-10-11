@@ -57,6 +57,8 @@ CurvytronController.prototype.onConnect = function(e)
  */
 CurvytronController.prototype.onDisconnect = function(e)
 {
+    // Mid-game there is no seat hold: a drop is a loss (the overlay says so).
+    this.$scope.inGame = /^\/game\//.test(this.$location.path());
     document.body.classList.remove('game-mode');
     this.$scope.status = 'disconnected';
     this.digestScope();

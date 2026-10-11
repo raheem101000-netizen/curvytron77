@@ -60,7 +60,10 @@ function RoomController(room)
         onConfigBonus: function (data) { controller.onConfigBonus(this, data[0], data[1]); },
         onLaunch: function (data) { controller.onLaunch(this); },
         onRematch: function () { controller.onRematch(this); },
-        onPrize: function (data) { controller.onPrize(this, data[0], data[1]); }
+        onPrize: function (data) { controller.onPrize(this, data[0], data[1]); },
+        // Only the current host's own Leave hands the role on (a stale call
+        // from a host already replaced must not unseat the new one).
+        onMasterLeave: function () { if (controller.roomMaster === this) { controller.removeRoomMaster(); } }
     };
 
     this.loadRoom();
@@ -181,6 +184,14 @@ RoomController.prototype.detach = function(client)
         this.promptCheckForClose();
         this.socketGroup.addEvent('client:remove', client.id);
         this.emit('client:remove', { room: this.room, client: client});
+
+        // The room never keeps a host who is no longer in it (seat released,
+        // Leave, kick): the role goes to someone who is.
+        if (this.roomMaster === client) {
+            this.removeRoomMaster();
+        } else if (!this.roomMaster) {
+            this.nominateRoomMaster();
+        }
     }
     this.checkIntegrity();
 };
@@ -260,7 +271,10 @@ RoomController.prototype.nominateRoomMaster = function()
 {
     if (this.clients.isEmpty() || this.roomMaster) { return; }
 
-    var roomMaster = this.clients.match(function () { return this.active && !this.away && this.isPlaying(); });
+    // A player who is here (idle or not) first; failing that, any seated
+    // player — the room always has a host while it has players.
+    var roomMaster = this.clients.match(function () { return !this.away && this.isPlaying(); }) ||
+                     this.clients.match(function () { return this.isPlaying(); });
 
     this.setRoomMaster(roomMaster);
 };
@@ -276,7 +290,7 @@ RoomController.prototype.setRoomMaster = function(client)
         this.roomMaster = client;
         // A dropped host keeps the host role while their seat is held (it
         // passes on after hostHandoffAfter, see sweep()).
-        this.roomMaster.on('room:leave', this.removeRoomMaster);
+        this.roomMaster.on('room:leave', this.callbacks.onMasterLeave);
         this.roomMaster.on('room:config:open', this.callbacks.onConfigOpen);
         this.roomMaster.on('room:config:max-score', this.callbacks.onConfigMaxScore);
         this.roomMaster.on('room:config:variable', this.callbacks.onConfigVariable);
@@ -291,10 +305,32 @@ RoomController.prototype.setRoomMaster = function(client)
  */
 RoomController.prototype.removeRoomMaster = function()
 {
-    if (this.roomMaster) {
+    var old = this.roomMaster;
+
+    if (old) {
         this.releaseRoomMaster();
         this.nominateRoomMaster();
+        this.onHostPassed(old);
     }
+};
+
+/**
+ * The host role went from one account to another: everyone's Ready is
+ * cleared (they re-accept with the new host) and the chat says who hosts now.
+ *
+ * @param {SocketClient} old
+ */
+RoomController.prototype.onHostPassed = function(old)
+{
+    var master = this.roomMaster;
+
+    if (!master || master === old || (master.userId && master.userId === old.userId)) { return; }
+
+    if (!this.room.game) {
+        this.clearReady();
+    }
+
+    this.systemLine(this.clientName(master) + ' is now the host');
 };
 
 /**
@@ -303,7 +339,7 @@ RoomController.prototype.removeRoomMaster = function()
 RoomController.prototype.releaseRoomMaster = function()
 {
     if (this.roomMaster) {
-        this.roomMaster.removeListener('room:leave', this.removeRoomMaster);
+        this.roomMaster.removeListener('room:leave', this.callbacks.onMasterLeave);
         this.roomMaster.removeListener('room:config:open', this.callbacks.onConfigOpen);
         this.roomMaster.removeListener('room:config:max-score', this.callbacks.onConfigMaxScore);
         this.roomMaster.removeListener('room:config:variable', this.callbacks.onConfigVariable);
@@ -720,7 +756,7 @@ RoomController.prototype.sweep = function()
     }
 
     if (this.roomMaster && this.roomMaster.away && now - this.roomMaster.awaySince > this.hostHandoffAfter &&
-        this.clients.match(function () { return !this.away && this.active && this.isPlaying(); })) {
+        this.clients.match(function () { return !this.away && this.isPlaying(); })) {
         this.removeRoomMaster();
     }
 };
