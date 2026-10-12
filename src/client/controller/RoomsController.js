@@ -28,9 +28,7 @@ function RoomsController($scope, $location, client)
     this.detachEvents = this.detachEvents.bind(this);
 
     this.$scope.$on('$destroy', this.detachEvents);
-    if (!this.$scope.inRoom) {
-        this.$location.search('password', null);
-    }
+    this.$location.search('password', null);
 
     // Hydrating the scope:
     this.$scope.rooms             = this.repository.rooms;

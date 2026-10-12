@@ -18,3 +18,44 @@
         <span class="kpb-tier">each extra <b>+$2</b></span>
     </div>
 </div>
+
+<style>
+/* ── Kurver lobby: Pong's / FIFA's lobby layout in Kurver's colours ─────────
+   Kurver: #05050f ground, purple #b450ff, cyan #50c8ff, coral→pink
+   #ff8069→#ff6e90, Space Grotesk. Shared by the match list page and the
+   match page (both include these bars). */
+
+/* The lobby page starts at the top (Kurver's pages are centred flex columns) */
+#main section.kl-lobby{justify-content:flex-start !important;}
+/* Top bar + "playing as" bar (Pong's .nav / .name-bar) */
+.kl-nav{position:relative;line-height:normal;display:flex;align-items:center;justify-content:space-between;padding:14px 32px;border-bottom:1px solid rgba(255,255,255,0.07);background:rgba(5,5,15,0.85);font-family:'Space Grotesk',sans-serif;}
+.kl-nav-left{display:flex;align-items:center;}
+.kl-back-slot{display:inline-block;width:84px;height:26px;}
+.kl-logo{font-size:20px;letter-spacing:8px;font-weight:300;color:#fff;line-height:26px;}
+.kl-nav-right{white-space:nowrap;font-size:11px;color:rgba(255,255,255,0.25);letter-spacing:2px;}
+.kl-name-bar{position:relative;line-height:normal;display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 32px;min-height:54px;background:rgba(5,5,15,0.6);border-bottom:1px solid rgba(255,255,255,0.05);font-family:'Space Grotesk',sans-serif;}
+.kl-name-bar > label{font-size:11px;color:rgba(255,255,255,0.3) !important;letter-spacing:1px;margin:0;font-weight:400;}
+.kl-name-slot{display:inline-block;width:180px;height:33px;}
+/* index.html's back link and the account badge, placed in those bars */
+body:has(.kl-lobby) div:has(> #tenten-back){position:absolute !important;top:14px !important;left:32px !important;height:26px;display:flex;align-items:center;z-index:5 !important;}
+body:has(.kl-lobby) .profile-link{position:absolute;top:65px;left:111px;right:auto;z-index:5;width:180px;height:33px;padding:0 14px;display:flex;align-items:center;gap:8px;text-align:left;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;font-family:'Space Grotesk',sans-serif;font-size:13px;line-height:1;color:#fff;}
+body:has(.kl-lobby) .profile-link .circle{width:10px;height:10px;margin:0;flex:none;}
+body:has(.kl-lobby) .profile-link .name, body:has(.kl-lobby) .profile-link .name span{font-size:13px;color:#fff;font-weight:400;}
+/* Prizes, at the right of the "playing as" bar */
+.kurver-prize-bar{margin-left:auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px;color:rgba(255,255,255,0.45);}
+.kpb-entry-n{font-weight:700;color:#fff;}
+.kpb-entry-l,.kpb-scale-t{font-size:11px;letter-spacing:1px;text-transform:uppercase;color:rgba(255,255,255,0.3);}
+.kpb-scale-t{margin-left:6px;}
+.kpb-tier{border:1px solid rgba(180,80,255,0.3);background:rgba(180,80,255,0.07);border-radius:6px;padding:2px 8px;font-size:11px;color:rgba(255,255,255,0.7);white-space:nowrap;}
+.kpb-tier b{color:#c98bff;}
+
+/* Page + panel: one centred column (the list page, or the match page) */
+.kl-container{position:relative;width:100%;max-width:760px;margin:0 auto;padding:24px;font-family:'Space Grotesk',sans-serif;}
+.kurver-panel{background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:12px;overflow:hidden;}
+.kl-panel-head{padding:14px 18px;border-bottom:1px solid rgba(255,255,255,0.07);display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;}
+.kl-panel-title{font-size:12px;font-weight:700;letter-spacing:1px;color:rgba(255,255,255,0.5);text-transform:uppercase;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;line-height:1.4;}
+.kl-panel-title span{font-size:inherit;color:inherit;}
+@media(max-width:700px){.kl-container{padding:16px;}}
+/* KURVER is longer than PONG: a little less letter-spacing keeps the top bar on one line on a phone */
+@media(max-width:420px){.kl-logo{letter-spacing:3px;}}
+</style>

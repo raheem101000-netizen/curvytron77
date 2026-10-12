@@ -1,11 +1,9 @@
 <section class="kl-lobby">
-    <!-- Same page as Pong's / FIFA's lobby: open matches left, this match right
-         (one column, list first, at <=700px). -->
+    <!-- The match, a page of its own (the list is on its own page; Leave goes
+         back to it). -->
     <ng-include src="'js/views/rooms/lobby-bars.html'"></ng-include>
 
     <div class="kl-container">
-    <div class="kurver-layout">
-    <div ng-controller="RoomsController"><ng-include src="'js/views/rooms/list-panel.html'"></ng-include></div>
     <div class="kurver-panel kurver-room-panel">
         <div class="kl-panel-head">
             <span class="kl-panel-title">{{ ::room.name }}<span class="kl-private" ng-if="!room.config.open"><i class="icon-lock"></i> PRIVATE</span></span>
@@ -142,7 +140,6 @@
             </button>
         </div>
         </div>
-    </div>
     </div>
     </div>
 </section>

@@ -3668,9 +3668,6 @@ function RoomController($scope, $routeParams, $location, client, repository, pro
     this.$scope.colorMaxLength    = Player.prototype.colorMaxLength;
     this.$scope.hasTouch          = this.hasTouch;
     this.$scope.autoTouch         = this.autoTouch;
-    // The room page also shows the open-rooms list beside the room (FIFA's
-    // layout); that embedded list must leave this room's URL alone.
-    this.$scope.inRoom            = true;
     this.$scope.master            = this.repository.amIMaster();
     this.$scope.displayParameters = false;
     this.$scope.$parent.profile   = true;
@@ -4494,9 +4491,7 @@ function RoomsController($scope, $location, client)
     this.detachEvents = this.detachEvents.bind(this);
 
     this.$scope.$on('$destroy', this.detachEvents);
-    if (!this.$scope.inRoom) {
-        this.$location.search('password', null);
-    }
+    this.$location.search('password', null);
 
     // Hydrating the scope:
     this.$scope.rooms             = this.repository.rooms;
