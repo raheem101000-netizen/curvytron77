@@ -26,3 +26,6 @@ try {
 
 // tenten.run login, prize and win credit (shared mediaskills database)
 var KurverMoney = require('../kurver-money.js');
+
+// tenten.run match alerts (browser push to subscribers, shared mediaskills database)
+var KurverPush = require('../kurver-push.js');

@@ -26,6 +26,9 @@ try {
 
 // tenten.run login, prize and win credit (shared mediaskills database)
 var KurverMoney = require('../kurver-money.js');
+
+// tenten.run match alerts (browser push to subscribers, shared mediaskills database)
+var KurverPush = require('../kurver-push.js');
 /**
  * Collection
  *
@@ -4545,6 +4548,17 @@ RoomsController.prototype.onCreateRoom = function(client, data, callback)
 
     if (room) {
         this.emit('room:new', {room: room});
+
+        // Match alert to everyone who turned them on at tenten.run — public
+        // matches only. Fire-and-forget: never delays or breaks the match.
+        if (!priv) {
+            KurverPush.notifyNewRoom('kurver', {
+                title: '🎮 Kurver — game starting',
+                body: 'Players are joining — jump in and win',
+                url: '/?play=kurver',
+                tag: 'kurver-new-room'
+            });
+        }
     }
 };
 
