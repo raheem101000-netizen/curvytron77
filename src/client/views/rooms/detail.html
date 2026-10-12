@@ -65,7 +65,8 @@
                         </td>
                     </tr>
                     <tr ng-repeat="player in room.players.items track by player.id | orderBy:'position'" ng-if="player.local" class="local">
-                        <td class="col-dot"><span class="line-color-preview" style="background-color: {{ player.color }};"></span></td>
+                        <!-- Your colour: tap to change it (the profile's colour picker; sent when it closes) -->
+                        <td class="col-dot"><button type="button" class="kl-color kl-color-mine" colorpicker="hex" colorpicker-position="bottom" ng-model="player.color" style="background-color: {{ player.color }};" title="Change your colour" aria-label="Change your colour"></button></td>
                         <td class="col-player">
                             <div class="kl-name-line">
                                 <input type="text" ng-model="player.name" ng-blur="setName(player)" class="player-name" name="name" ng-attr-size="{{ (player.name.length || 1) + 1 }}" maxlength="{{ ::nameMaxLength }}" />
@@ -90,7 +91,7 @@
                         </td>
                     </tr>
                     <tr ng-repeat="player in room.players.items track by player.id | orderBy:'position'" ng-if="!player.local">
-                        <td class="col-dot"><span class="line-color-preview" style="background-color: {{ player.color }};"></span></td>
+                        <td class="col-dot"><span class="kl-color" style="background-color: {{ player.color }};" title="{{ player.name }}'s colour"></span></td>
                         <td class="col-player">
                             <p class="player-name">{{ player.name }}</p>
                         </td>
@@ -183,7 +184,13 @@
 .room-players tbody td{padding:12px;font-size:14px;line-height:1.4;border-bottom:1px solid rgba(255,255,255,0.04);vertical-align:middle;color:#fff;height:auto;}
 .room-players tbody tr{background:none !important;}
 .room-players th.col-status,.room-players td.col-status{text-align:right;}
-.room-players .col-dot{width:20px;padding-right:0;}
+.room-players .col-dot{width:44px;padding-right:0;}
+/* Each player's colour (their line in the game): big enough to tell apart at a glance */
+.room-players .kl-color{display:inline-block;vertical-align:middle;width:28px;height:28px;border-radius:50%;border:2px solid rgba(255,255,255,0.18);box-sizing:border-box;padding:0;}
+/* Yours is a button: ringed, and tapping it opens the colour picker */
+.room-players .kl-color-mine{position:relative;cursor:pointer;border:2px solid #fff;box-shadow:0 0 0 3px rgba(255,255,255,0.12);transition:transform .15s ease,box-shadow .15s ease;}
+.room-players .kl-color-mine::before{content:'';position:absolute;inset:-8px;}
+.room-players .kl-color-mine:hover,.room-players .kl-color-mine:focus-visible{transform:scale(1.12);box-shadow:0 0 0 4px rgba(255,255,255,0.22);outline:none;}
 .room-players .line-color-preview{width:12px;height:12px;border-radius:50%;display:inline-block;vertical-align:middle;}
 .room-players .col-player{padding-left:8px;padding-right:4px;}
 .room-players p.player-name{margin:0;color:#fff;font-size:14px;line-height:1.4;}

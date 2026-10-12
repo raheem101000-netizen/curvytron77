@@ -70,6 +70,9 @@ function RoomController($scope, $routeParams, $location, client, repository, pro
     this.$scope.removePlayer      = this.removePlayer;
     this.$scope.kickPlayer        = this.kickPlayer;
     this.$scope.setColor          = this.setColor;
+    // Your colour circle in the room opens the colour picker; the colour is
+    // sent (setColor) when the picker closes.
+    this.$scope.$on('colorpicker-closed', this.onColorPicked.bind(this));
     this.$scope.setReady          = this.setReady;
     this.$scope.setName           = this.setName;
     this.$scope.setTouch          = this.setTouch;
@@ -517,6 +520,21 @@ RoomController.prototype.applyTouch = function(player)
     this.controlSynchro = true;
     player.setTouch();
     this.controlSynchro = synchro;
+};
+
+/**
+ * The colour picker on one of your own players closed: send its colour
+ * (the server checks it and shows it to everyone in the room).
+ *
+ * @param {Event} e
+ */
+RoomController.prototype.onColorPicked = function(e)
+{
+    var player = e.targetScope ? e.targetScope.player : null;
+
+    if (player && player.local) {
+        this.setColor(player);
+    }
 };
 
 /**
