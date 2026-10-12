@@ -125,6 +125,10 @@ async function creditWin(opts) {
                 [loserId, KURVER_GAME, key + ':loss:' + loserId, tier, KURVER_MATCH_NUMBER]
             );
         }
+        await recordSettledMatch(client, {
+            matchKey: key, winnerUserId: opts.winnerUserId, loserUserIds: opts.loserUserIds || [],
+            prize: amount, payingPlayers: opts.startedPlayers
+        });
         await client.query('COMMIT');
         return { status: 'credited', amount, balanceBefore: Number(before.rows[0].balance).toFixed(2), balanceAfter: Number(after.rows[0].balance).toFixed(2) };
     } catch (e) {
@@ -132,6 +136,81 @@ async function creditWin(opts) {
         throw e;
     } finally {
         client.release();
+    }
+}
+
+// ── Settled-match record (creator program) ───────────────────────────────────
+// One structured row per paid game, written inside the credit transaction right
+// after the game_wins claim — exactly-once on the same key as the credit. Same
+// tables (shared database) as FIFA and Pong write; identical idempotent DDL.
+// Raw facts only. entries_charged stays false until entry charging exists:
+// until then entry_price / paying_players / entry_total / margin are the listed
+// $2 × the accounts in the game, and nothing was actually collected — readers
+// must count only entries_charged = true for money really paid in.
+const KURVER_ENTRY_PRICE = '2.00';
+
+// The three services may start at the same moment: the DDL runs in one
+// transaction behind a shared advisory lock, so they take turns.
+const SETTLED_MIGRATION_LOCK = 727274;
+
+async function migrateSettledMatches() {
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        await client.query('SELECT pg_advisory_xact_lock($1)', [SETTLED_MIGRATION_LOCK]);
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS settled_matches (
+                match_key        TEXT PRIMARY KEY,
+                game             TEXT NOT NULL CHECK (game IN ('fifa','pong','kurver')),
+                settled_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+                winner_user_id   INTEGER NOT NULL REFERENCES users(id),
+                prize            NUMERIC(10,2) NOT NULL,
+                entry_price      NUMERIC(10,2) NOT NULL,
+                paying_players   INTEGER NOT NULL,
+                entry_total      NUMERIC(10,2) NOT NULL,
+                margin           NUMERIC(10,2) NOT NULL,
+                entries_charged  BOOLEAN NOT NULL DEFAULT false
+            )
+        `);
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS settled_match_players (
+                match_key  TEXT NOT NULL REFERENCES settled_matches(match_key),
+                user_id    INTEGER NOT NULL REFERENCES users(id),
+                outcome    TEXT NOT NULL CHECK (outcome IN ('won','lost')),
+                PRIMARY KEY (match_key, user_id)
+            )
+        `);
+        await client.query(`CREATE INDEX IF NOT EXISTS settled_match_players_user_idx ON settled_match_players (user_id)`);
+        await client.query('COMMIT');
+        console.log('[settled-matches] tables ready');
+    } catch (e) {
+        await client.query('ROLLBACK').catch(function () {});
+        console.error('[settled-matches] migration failed — games won\'t be recorded until this is fixed:', e);
+    } finally {
+        client.release();
+    }
+}
+if (process.env.DATABASE_URL) { migrateSettledMatches(); }
+
+// Inside the credit transaction, in its own savepoint: a failure skips only the
+// record (logged) — the credit always commits.
+async function recordSettledMatch(client, m) {
+    await client.query('SAVEPOINT settled_match');
+    try {
+        await client.query(
+            `INSERT INTO settled_matches (match_key, game, winner_user_id, prize, entry_price, paying_players, entry_total, margin)
+             VALUES ($1, 'kurver', $2, $3::numeric, $4::numeric, $5::int, $4::numeric * $5::int, $4::numeric * $5::int - $3::numeric)
+             ON CONFLICT (match_key) DO NOTHING`,
+            [m.matchKey, m.winnerUserId, m.prize, KURVER_ENTRY_PRICE, m.payingPlayers]
+        );
+        await client.query(`INSERT INTO settled_match_players (match_key, user_id, outcome) VALUES ($1, $2, 'won') ON CONFLICT DO NOTHING`, [m.matchKey, m.winnerUserId]);
+        for (const id of m.loserUserIds) {
+            await client.query(`INSERT INTO settled_match_players (match_key, user_id, outcome) VALUES ($1, $2, 'lost') ON CONFLICT DO NOTHING`, [m.matchKey, id]);
+        }
+        await client.query('RELEASE SAVEPOINT settled_match');
+    } catch (e) {
+        await client.query('ROLLBACK TO SAVEPOINT settled_match').catch(function () {});
+        console.error('[settled-matches] couldn\'t record ' + m.matchKey + ' (the credit is unaffected):', e);
     }
 }
 
@@ -156,4 +235,4 @@ async function creditWinWithRetry(opts) {
     return { status: 'failed' };
 }
 
-module.exports = { authenticate, authenticateUpgrade, AuthError, prize, payoutsEnabled, newGameKey, creditWin, creditWinWithRetry, pool };
+module.exports = { authenticate, authenticateUpgrade, AuthError, prize, payoutsEnabled, newGameKey, creditWin, creditWinWithRetry, pool, migrateSettledMatches };
