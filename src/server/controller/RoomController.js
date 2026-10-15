@@ -794,14 +794,27 @@ RoomController.prototype.tellNoFault = function(message, reason, credited)
             match_start_failed: 'The game couldn\'t start.',
             system_error: 'The game couldn\'t start.'
         }[reason] || message + ' — the game didn\'t start.',
-        watching = message + ' — the game didn\'t start.';
-    this.systemLine(watching + (credited.length ? ' Any entry paid has been refunded to that player\'s Refund Balance.' : ''));
+        watching = message + ' — the game didn\'t start.',
+        // An expired payment window isn't a cancelled game: the room stays,
+        // and pressing READY again opens a new window (whoever paid is covered
+        // by their Refund Balance; the others pay by card).
+        expired = reason === 'payment_timeout';
+    if (expired) {
+        watching = 'Payment expired — not everyone paid in time.';
+        this.systemLine('Payment expired — ' + message + '. Press READY to try again.');
+    } else {
+        this.systemLine(watching + (credited.length ? ' Any entry paid has been refunded to that player\'s Refund Balance.' : ''));
+    }
     for (var i = this.clients.items.length - 1; i >= 0; i--) {
-        var client = this.clients.items[i];
+        var client = this.clients.items[i], refunded = client.userId && credited.indexOf(client.userId) >= 0;
         client.addEvent('room:pay:cancelled', {
-            message: client.userId && credited.indexOf(client.userId) >= 0
-                ? why + ' Your $2.00 has been refunded to your Refund Balance — use it to enter another game at the same price.'
-                : (client.isPlaying() ? other : watching)
+            message: expired
+                ? (refunded
+                    ? 'Payment expired — not everyone paid in time. Your $2.00 is safe in your Refund Balance. Press READY to go again — it\'s already covered.'
+                    : (client.isPlaying() ? 'Payment expired — you didn\'t pay in time. Press READY to pay and try again.' : watching))
+                : (refunded
+                    ? why + ' Your $2.00 has been refunded to your Refund Balance — use it to enter another game at the same price.'
+                    : (client.isPlaying() ? other : watching))
         });
     }
 };
