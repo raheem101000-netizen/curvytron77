@@ -29,6 +29,9 @@ var KurverMoney = require('../kurver-money.js');
 
 // tenten.run match alerts (browser push to subscribers, shared mediaskills database)
 var KurverPush = require('../kurver-push.js');
+
+// Entry fees: Stripe Checkout per player, confirmed by webhook (shared mediaskills database)
+var KurverPay = require('../kurver-pay.js');
 /**
  * Collection
  *
@@ -3232,6 +3235,7 @@ RoomController.prototype.attach = function(client, callback)
             votes: this.kickManager.votes.map(function () { return this.serialize(); }).items,
             rematch: this.serializeRematch()
         });
+        this.sendPayPrompt(client);
         this.emit('client:add', { room: this.room, client: client});
     } else {
         callback({success: false, error: 'Client ' + client.id + ' already in the room.'});
@@ -3524,6 +3528,12 @@ RoomController.prototype.launch = function()
         return;
     }
 
+    // Entry fees on: a game only starts once every entry is paid.
+    if (KurverPay.entryFeesRequested()) {
+        if (!this.payment && KurverPay.entryFeesReady()) { this.openPaymentWindow(); }
+        return;
+    }
+
     this.room.newGame();
 };
 
@@ -3544,6 +3554,226 @@ RoomController.prototype.canStart = function()
  * @type {Number}
  */
 RoomController.prototype.minPlayers = 3;
+
+/**
+ * Entry fees (kurver-pay.js): after the host's Start every player pays the
+ * flat $2 on Stripe's page; the payment counts when Stripe's webhook confirms
+ * it. When all have paid, the game starts as soon as everyone is back on the
+ * page (at most returnGrace later — a player still away then plays from away,
+ * which loses, as any drop does). Refunds only when the game can't happen:
+ * someone didn't pay in time / left first, or a system error.
+ *
+ * @type {Number}
+ */
+RoomController.prototype.returnGrace = Number(process.env.KURVER_PAY_RETURN_GRACE_MS) || 60000;
+
+/**
+ * Open the payment window for the players in the room now.
+ */
+RoomController.prototype.openPaymentWindow = function()
+{
+    if (this.payment) { return; }
+    var controller = this,
+        players = this.room.players.items.slice(),
+        base = String(process.env.BASE_URL || '').replace(/\/$/, ''),
+        pot = KurverMoney.prize(players.length),
+        pw = {
+            attemptId: 'kurver-' + this.room.code + '-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8),
+            pot: pot,
+            deadline: Date.now() + KurverPay.PAY_WINDOW_MS,
+            urls: {},
+            paid: {},
+            userIds: players.map(function (p) { return p.client.userId; }),
+            timer: null,
+            returnTimer: null,
+            allPaid: false,
+            closing: false
+        };
+
+    this.payment = pw;
+    KurverPay.watchAttempt(pw.attemptId, function (row) { return controller.paymentConfirmed(row); });
+
+    var opened = players.reduce(function (chain, player) {
+        return chain.then(function () {
+            return KurverPay.openPayment({
+                game: 'kurver', attemptId: pw.attemptId, userId: player.client.userId,
+                amountCents: KurverPay.ENTRY_CENTS, prize: pot.toFixed(2),
+                productName: 'Kurver entry — ' + players.length + ' players, $' + pot + ' pot',
+                successUrl: base + '/multiplayer?paid=1', cancelUrl: base + '/multiplayer?paid=0'
+            }).then(function (out) { pw.urls[player.client.userId] = out.url; });
+        });
+    }, Promise.resolve());
+
+    opened.then(function () {
+        if (controller.payment !== pw) { return; }
+        pw.timer = setTimeout(function () {
+            var waiting = controller.payNames(false);
+            controller.cancelPaymentWindow((waiting.join(' and ') || 'A player') + ' didn\'t pay in time', 'payment_timeout');
+        }, KurverPay.PAY_WINDOW_MS);
+        console.info('[entry-fees] room "%s": payment window %s — $2 each, %d players, $%d pot', controller.room.name, pw.attemptId, players.length, pot);
+        controller.systemLine('Entries: $2 each — ' + players.length + ' players, $' + pot + ' pot. The game starts once everyone has paid.');
+        controller.sendPayPrompts();
+    }).catch(function (error) {
+        console.error('[entry-fees] couldn\'t open payments for room "%s":', controller.room.name, error);
+        controller.cancelPaymentWindow('Payments are unavailable right now — try again', 'system_error');
+    });
+};
+
+/**
+ * Names of the players who have (true) / haven't (false) paid.
+ *
+ * @param {Boolean} paid
+ *
+ * @return {Array}
+ */
+RoomController.prototype.payNames = function(paid)
+{
+    var pw = this.payment;
+    if (!pw) { return []; }
+    return this.room.players.items.filter(function (p) {
+        return (pw.paid[p.client.userId] ? true : false) === paid;
+    }).map(function (p) { return p.name; });
+};
+
+/**
+ * What one player's page shows while entries are being paid.
+ *
+ * @param {Number} userId
+ *
+ * @return {Object|null}
+ */
+RoomController.prototype.payPayload = function(userId)
+{
+    var pw = this.payment;
+    if (!pw || pw.closing) { return null; }
+    var mine = pw.paid[userId] ? true : false;
+    return {
+        entry: '2.00', pot: pw.pot, players: pw.userIds.length, deadline: pw.deadline,
+        paid: mine, url: mine ? null : (pw.urls[userId] || null),
+        waiting: this.room.players.items.filter(function (p) { return !pw.paid[p.client.userId] && p.client.userId !== userId; }).map(function (p) { return p.name; }),
+        allPaid: pw.allPaid
+    };
+};
+
+/**
+ * Send one connection its payment state (players only).
+ *
+ * @param {SocketClient} client
+ */
+RoomController.prototype.sendPayPrompt = function(client)
+{
+    if (!this.payment || !client.userId || this.payment.userIds.indexOf(client.userId) < 0) { return; }
+    var payload = this.payPayload(client.userId);
+    if (payload) { client.addEvent('room:pay', payload); }
+};
+
+/**
+ * Send every player's page its payment state.
+ */
+RoomController.prototype.sendPayPrompts = function()
+{
+    for (var i = this.room.players.items.length - 1; i >= 0; i--) {
+        this.sendPayPrompt(this.room.players.items[i].client);
+    }
+};
+
+/**
+ * Stripe's webhook confirmed a payment for this room's attempt. false = it
+ * can't be used (the caller refunds it).
+ *
+ * @param {Object} row
+ *
+ * @return {Boolean}
+ */
+RoomController.prototype.paymentConfirmed = function(row)
+{
+    var pw = this.payment, controller = this;
+    if (row.game !== 'kurver' || !pw || pw.closing || pw.attemptId !== row.attempt_id || pw.userIds.indexOf(row.user_id) < 0) { return false; }
+    if (!this.room.players.match(function () { return this.client && this.client.userId === row.user_id; })) { return false; }
+    pw.paid[row.user_id] = true;
+    if (pw.userIds.every(function (id) { return pw.paid[id]; })) {
+        pw.allPaid = true;
+        if (pw.timer) { clearTimeout(pw.timer); pw.timer = null; }
+        pw.returnBy = Date.now() + this.returnGrace;
+        pw.returnTimer = setInterval(function () { controller.startPaidGameWhenBack(); }, 1000);
+        this.systemLine('Everyone has paid — the game starts as soon as all players are back.');
+    }
+    this.sendPayPrompts();
+    if (pw.allPaid) { this.startPaidGameWhenBack(); }
+    return true;
+};
+
+/**
+ * All paid: start once every player is back on the page, or when the grace
+ * runs out (a player still away plays from away — that loses, as any drop).
+ */
+RoomController.prototype.startPaidGameWhenBack = function()
+{
+    var pw = this.payment;
+    if (!pw || !pw.allPaid || pw.closing) { return; }
+    var allBack = this.room.players.items.every(function (p) { return p.client && p.client.connected && !p.client.away; });
+    if (!allBack && Date.now() < pw.returnBy) { return; }
+    pw.closing = true;
+    if (pw.returnTimer) { clearInterval(pw.returnTimer); pw.returnTimer = null; }
+    KurverPay.unwatchAttempt(pw.attemptId);
+    this.payment = null;
+    var game = this.room.newGame(), controller = this;
+    if (!game) {
+        console.error('[entry-fees] room "%s": game couldn\'t be started after all paid — refunding', this.room.name);
+        KurverPay.attemptRows(pw.attemptId).then(function (rows) {
+            return Promise.all(rows.filter(function (r) { return r.status === 'paid' && !r.match_key; })
+                .map(function (r) { return KurverPay.refundRow(r, 'match_start_failed'); }));
+        }).catch(function (e) { console.error('[entry-fees] refunds failed — the recovery sweep will retry:', e); });
+        this.systemLine('The game couldn\'t be started — every entry has been refunded. Try again.');
+        this.socketGroup.addEvent('room:pay:cancelled', {message: 'The game couldn\'t be started — every entry has been refunded.'});
+        return;
+    }
+    // The pot is what was paid for: every paid entry except one, even if a
+    // player who paid left before the start.
+    var paidCount = pw.userIds.length;
+    game.prizeDollars = KurverMoney.prize(paidCount);
+    KurverPay.attachMatch(pw.attemptId, 'kurver:' + game.gameKey, 'Kurver').catch(function (e) {
+        console.error('[entry-fees] couldn\'t attach %s to game %s:', pw.attemptId, game.gameKey, e);
+    });
+    console.info('[entry-fees] room "%s": all %d paid — game %s started ($%d pot)', controller.room.name, paidCount, game.gameKey, game.prizeDollars);
+};
+
+/**
+ * The window ends without a game: unpaid Checkouts closed, anyone who paid
+ * refunded (the game couldn't happen through no fault of theirs).
+ *
+ * @param {String} message
+ * @param {String} reason
+ */
+RoomController.prototype.cancelPaymentWindow = function(message, reason)
+{
+    var pw = this.payment, controller = this;
+    if (!pw || pw.closing) { return; }
+    pw.closing = true;
+    if (pw.timer) { clearTimeout(pw.timer); }
+    if (pw.returnTimer) { clearInterval(pw.returnTimer); }
+    KurverPay.unwatchAttempt(pw.attemptId);
+    this.payment = null;
+    for (var i = this.room.players.items.length - 1; i >= 0; i--) {
+        var player = this.room.players.items[i];
+        if (player.ready) {
+            player.toggleReady(false);
+            this.socketGroup.addEvent('player:ready', { player: player.id, ready: false });
+        }
+    }
+    KurverPay.cancelAttempt(pw.attemptId, reason).then(function (out) {
+        return out.refunded;
+    }).catch(function (e) {
+        console.error('[entry-fees] cancelling %s failed — the recovery sweep will refund any payment:', pw.attemptId, e);
+        return [];
+    }).then(function (refunded) {
+        var names = controller.room.players.items.filter(function (p) { return refunded.indexOf(p.client.userId) >= 0; }).map(function (p) { return p.name; });
+        var text = message + (names.length ? ' — ' + names.join(', ') + (names.length > 1 ? ' have' : ' has') + ' been refunded $2.' : '. No one was charged.');
+        console.info('[entry-fees] room "%s": window %s cancelled (%s)', controller.room.name, pw.attemptId, reason);
+        controller.systemLine(text);
+        controller.socketGroup.addEvent('room:pay:cancelled', {message: text});
+    });
+};
 
 /**
  * Clear everyone's Ready (the host role passed to someone else) and stop a
@@ -3742,7 +3972,7 @@ RoomController.prototype.sweep = function()
             this.setAway(client, quiet);
         }
 
-        if (client.away && now - client.awaySince > this.seatHold) {
+        if (client.away && now - client.awaySince > this.seatHold && !this.payment) {
             console.info('Seat of account %s released in room "%s".', client.userId, this.room.name);
             this.detach(client);
         }
@@ -3755,7 +3985,7 @@ RoomController.prototype.sweep = function()
         if (gone) { this.cancelRematch(gone.name + ' is away — rematch cancelled.'); }
     }
 
-    if (this.roomMaster && this.roomMaster.away && now - this.roomMaster.awaySince > this.hostHandoffAfter &&
+    if (this.roomMaster && this.roomMaster.away && now - this.roomMaster.awaySince > this.hostHandoffAfter && !this.payment &&
         this.clients.match(function () { return !this.away && this.isPlaying(); })) {
         this.removeRoomMaster();
     }
@@ -3890,6 +4120,10 @@ RoomController.prototype.onPlayerAdd = function(client, data, callback)
 
     if (this.room.game) {
         return callback({success: false, error: 'Game already started.'});
+    }
+
+    if (this.payment) {
+        return callback({success: false, error: 'This game is starting — entries are being paid.'});
     }
 
     if (!this.room.isNameAvailable(name)) {
@@ -4060,6 +4294,10 @@ RoomController.prototype.onKickVote = function(client, data, callback)
         return callback({success: false, kicked: false, error: 'Only the host can remove players.'});
     }
 
+    if (this.payment) {
+        return callback({success: false, kicked: false, error: 'Not while entries are being paid.'});
+    }
+
     var player = this.room.players.getById(data.player);
 
     if (!player) {
@@ -4171,11 +4409,24 @@ RoomController.prototype.onLaunch = function(client)
         return client.addEvent('room:launch:refused', {error: 'Waiting for everyone to accept the rematch.'});
     }
 
+    if (this.isRoomMaster(client) && this.payment) {
+        return client.addEvent('room:launch:refused', {error: 'Waiting for every entry to be paid.'});
+    }
+
     if (this.isRoomMaster(client)) {
         if (this.launching) {
             this.cancelLaunch();
         } else if (this.canStart()) {
-            this.startLaunch();
+            if (KurverPay.entryFeesRequested()) {
+                // Entry fees: every player pays $2 first; the game starts once
+                // all are paid (and back from Stripe's page).
+                if (!KurverPay.entryFeesReady()) {
+                    return client.addEvent('room:launch:refused', {error: 'Payments are unavailable right now — try again later.'});
+                }
+                this.openPaymentWindow();
+            } else {
+                this.startLaunch();
+            }
         } else {
             var away = this.awayNames();
             client.addEvent('room:launch:refused', {error: this.room.players.count() < this.minPlayers ? 'Need at least ' + this.minPlayers + ' players to start.'
@@ -4204,6 +4455,13 @@ RoomController.prototype.onPlayerJoin = function(data)
 RoomController.prototype.onPlayerLeave = function(data)
 {
     this.socketGroup.addEvent('room:leave', {player: data.player.id});
+
+    // Entries being collected: the game can't happen as it was paid for —
+    // the window closes and anyone who paid is refunded. (Once every entry
+    // is paid, a player who leaves just loses theirs.)
+    if (this.payment && !this.payment.allPaid) {
+        this.cancelPaymentWindow(data.player.name + ' left before the game started', 'left_before_start');
+    }
 
     // Below the minimum now? A running countdown stops (back to waiting).
     this.checkLaunch();

@@ -3644,6 +3644,9 @@ function RoomController($scope, $routeParams, $location, client, repository, pro
     this.onPlayerClient   = this.onPlayerClient.bind(this);
     this.onSuperseded     = this.onSuperseded.bind(this);
     this.onRematch        = this.onRematch.bind(this);
+    this.onPay            = this.onPay.bind(this);
+    this.onPayCancelled   = this.onPayCancelled.bind(this);
+    this.tickPay          = this.tickPay.bind(this);
 
     this.$scope.$on('$destroy', this.leaveRoom);
 
@@ -3666,6 +3669,8 @@ function RoomController($scope, $routeParams, $location, client, repository, pro
     this.$scope.minPlayers        = this.minPlayers;
     this.$scope.requestRematch    = this.requestRematch.bind(this);
     this.$scope.rematch           = null;
+    this.$scope.pay               = null;   // entry fees being paid (server: room:pay)
+    this.$scope.payLeft           = 0;
     this.$scope.rematchMine       = false;
     this.onKicked                 = this.onKicked.bind(this);
     this.$scope.prizeLabel        = this.prizeLabel;
@@ -3806,6 +3811,8 @@ RoomController.prototype.attachEvents = function()
     this.repository.on('client:away', this.requestDigestScope);
     this.repository.on('player:client', this.onPlayerClient);
     this.repository.on('room:rematch', this.onRematch);
+    this.repository.on('room:pay', this.onPay);
+    this.repository.on('room:pay:cancelled', this.onPayCancelled);
     this.setRematch(this.repository.rematch);
     this.client.on('room:kicked', this.onKicked);
     this.client.on('room:superseded', this.onSuperseded);
@@ -3835,6 +3842,9 @@ RoomController.prototype.detachEvents = function()
     this.repository.off('client:away', this.requestDigestScope);
     this.repository.off('player:client', this.onPlayerClient);
     this.repository.off('room:rematch', this.onRematch);
+    this.repository.off('room:pay', this.onPay);
+    this.repository.off('room:pay:cancelled', this.onPayCancelled);
+    if (this.payInterval) { this.payInterval = clearInterval(this.payInterval); }
     this.client.off('room:kicked', this.onKicked);
     this.client.off('room:superseded', this.onSuperseded);
 
@@ -3943,6 +3953,46 @@ RoomController.prototype.onRematch = function(e)
         this.showToast(rematch.cancelled);
     }
 
+    this.requestDigestScope();
+};
+
+/**
+ * Entry fees: this player's payment state from the server (amount and the
+ * Stripe Checkout link come from it; the page only shows them).
+ *
+ * @param {Event} e
+ */
+RoomController.prototype.onPay = function(e)
+{
+    this.$scope.pay = e.detail;
+    if (!this.payInterval) { this.payInterval = setInterval(this.tickPay, 1000); }
+    this.tickPay();
+};
+
+/**
+ * Seconds left to pay (shown in the payment box).
+ */
+RoomController.prototype.tickPay = function()
+{
+    var pay = this.$scope.pay;
+    if (!pay) {
+        if (this.payInterval) { this.payInterval = clearInterval(this.payInterval); }
+        return;
+    }
+    this.$scope.payLeft = Math.max(0, Math.ceil((pay.deadline - Date.now()) / 1000));
+    this.requestDigestScope();
+};
+
+/**
+ * The payment window closed without a game (someone didn't pay / left).
+ *
+ * @param {Event} e
+ */
+RoomController.prototype.onPayCancelled = function(e)
+{
+    this.$scope.pay = null;
+    this.tickPay();
+    if (e.detail && e.detail.message) { this.showToast(e.detail.message); }
     this.requestDigestScope();
 };
 
@@ -4490,8 +4540,8 @@ RoomController.prototype.prizeLabel = function()
     var count = this.room ? this.room.players.items.length : 0;
 
     // Same rule the server pays with (kurver-money.js prize()):
-    // 3 players \u2192 $5, otherwise $2 \u00d7 (n \u2212 1); nothing to show while it's $0.
-    var prize = count === 3 ? 5 : Math.max(0, 2 * (count - 1));
+    // $2 \u00d7 (n \u2212 1) \u2014 3 \u2192 $4, 4 \u2192 $6, 5 \u2192 $8; nothing to show while it's $0.
+    var prize = Math.max(0, 2 * (count - 1));
 
     if (!prize) {
         return 'Waiting for players\u2026 (min 3)';
@@ -8844,6 +8894,8 @@ RoomRepository.prototype.attachEvents = function()
     this.client.on('client:away', this.onClientAway);
     this.client.on('player:client', this.onPlayerClient);
     this.client.on('room:rematch', this.onRematch);
+    this.client.on('room:pay', this.forwardEvent);
+    this.client.on('room:pay:cancelled', this.forwardEvent);
 };
 
 /**
@@ -8873,6 +8925,8 @@ RoomRepository.prototype.detachEvents = function()
     this.client.off('client:away', this.onClientAway);
     this.client.off('player:client', this.onPlayerClient);
     this.client.off('room:rematch', this.onRematch);
+    this.client.off('room:pay', this.forwardEvent);
+    this.client.off('room:pay:cancelled', this.forwardEvent);
 };
 
 /**

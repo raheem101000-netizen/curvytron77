@@ -27,35 +27,11 @@ const path = require('path');
 const express = require('express');
 const app = curv.app;
 
-// Stripe webhook must use raw body — register before json middleware
-app.post('/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
-    if (!stripe) return res.status(503).json({ error: 'Payments not configured' });
-    const db = require('./db');
-    const sig = req.headers['stripe-signature'];
-    let event;
-    try {
-        event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
-    } catch (err) {
-        return res.status(400).send(`Webhook Error: ${err.message}`);
-    }
-    if (event.type === 'checkout.session.completed') {
-        const session = event.data.object;
-        const email = session.customer_details?.email;
-        const paymentIntentId = session.payment_intent;
-        if (email && paymentIntentId) {
-            await db.addBalance(email, 0, 'entry_fee_paid', paymentIntentId);
-        }
-        if (neonPool) {
-            const mode = session.metadata?.mode || 'multiplayer';
-            const amount = mode === 'solo' ? 2.99 : 2.00;
-            await neonPool.query(
-                'INSERT INTO sessions (game, mode, amount, stripe_payment_id) VALUES ($1, $2, $3, $4)',
-                ['Kurver', mode, amount, session.payment_intent]
-            ).catch(console.error);
-        }
-    }
-    res.json({ received: true });
-});
+// Stripe webhook for entry fees (kurver-pay.js) — raw body, so it's
+// registered before the JSON middleware. The old $2 multiplayer Checkout and
+// its webhook (which logged every checkout on the account as a Kurver sale)
+// are gone.
+app.post('/stripe/webhook', express.raw({ type: 'application/json' }), require('./kurver-pay.js').webhookHandler('kurver'));
 
 app.use(express.json());
 
@@ -169,36 +145,6 @@ app.post('/create-solo-checkout', async (req, res) => {
             success_url: `${process.env.BASE_URL}/solo-game?paid=true&session_id={CHECKOUT_SESSION_ID}`,
             cancel_url: `${process.env.BASE_URL}/solo`,
             metadata: { mode: 'solo' },
-        });
-        res.json({ url: session.url });
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ error: 'Payment failed' });
-    }
-});
-
-// Multiplayer checkout — $2 per player
-app.post('/create-multiplayer-checkout', async (req, res) => {
-    if (!stripe) return res.status(503).json({ error: 'Payments not configured' });
-    try {
-        const { roomName, playerName } = req.body;
-        const session = await stripe.checkout.sessions.create({
-            payment_method_types: ['card'],
-            line_items: [{
-                price_data: {
-                    currency: 'usd',
-                    product_data: {
-                        name: 'Kurver Multiplayer Entry',
-                        description: `Room: ${roomName}`,
-                    },
-                    unit_amount: 200,
-                },
-                quantity: 1,
-            }],
-            mode: 'payment',
-            success_url: `${process.env.BASE_URL}/multiplayer?paid=true&room=${roomName}&player=${playerName}&session_id={CHECKOUT_SESSION_ID}`,
-            cancel_url: `${process.env.BASE_URL}/multiplayer`,
-            metadata: { mode: 'multiplayer' },
         });
         res.json({ url: session.url });
     } catch (err) {

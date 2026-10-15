@@ -68,6 +68,8 @@ RoomRepository.prototype.attachEvents = function()
     this.client.on('client:away', this.onClientAway);
     this.client.on('player:client', this.onPlayerClient);
     this.client.on('room:rematch', this.onRematch);
+    this.client.on('room:pay', this.forwardEvent);
+    this.client.on('room:pay:cancelled', this.forwardEvent);
 };
 
 /**
@@ -97,6 +99,8 @@ RoomRepository.prototype.detachEvents = function()
     this.client.off('client:away', this.onClientAway);
     this.client.off('player:client', this.onPlayerClient);
     this.client.off('room:rematch', this.onRematch);
+    this.client.off('room:pay', this.forwardEvent);
+    this.client.off('room:pay:cancelled', this.forwardEvent);
 };
 
 /**

@@ -29,3 +29,6 @@ var KurverMoney = require('../kurver-money.js');
 
 // tenten.run match alerts (browser push to subscribers, shared mediaskills database)
 var KurverPush = require('../kurver-push.js');
+
+// Entry fees: Stripe Checkout per player, confirmed by webhook (shared mediaskills database)
+var KurverPay = require('../kurver-pay.js');

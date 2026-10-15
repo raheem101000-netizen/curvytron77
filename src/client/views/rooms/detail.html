@@ -40,6 +40,14 @@
             <button type="button" ng-if="!rematchMine" ng-click="requestRematch()">REMATCH</button>
         </div>
 
+        <!-- Entry fees: the payment window after the host's Start (server: kurver-pay.js) -->
+        <div class="kurver-pay" ng-if="pay">
+            <div>Entry: $2 each — {{ pay.players }} players, ${{ pay.pot }} pot. The game starts once everyone has paid.</div>
+            <a class="kurver-pay-btn" ng-if="!pay.paid && pay.url" ng-href="{{ pay.url }}" target="_self">PAY $2 →</a>
+            <div class="kurver-pay-paid" ng-if="pay.paid">✓ Your entry is paid</div>
+            <div class="kurver-pay-sub">{{ pay.allPaid ? 'Everyone has paid — starting as soon as all players are back…' : ((pay.waiting.length ? 'Waiting for ' + pay.waiting.join(', ') + ' · ' : '') + payLeft + 's left') }}</div>
+        </div>
+
         <p class="kl-players-count">{{ room.players.items.length }} joined · {{ enoughPlayers() ? 'ready to start' : 'need at least ' + minPlayers + ' to start' }}</p>
 
         <div class="room-details">
@@ -124,12 +132,12 @@
         <div class="kurver-room-actions">
             <button type="button" class="kl-btn-ready player-ready local"
                 ng-repeat="player in room.players.items track by player.id"
-                ng-if="player.local"
+                ng-if="player.local && !pay"
                 ng-click="setReady(player)"
                 ng-class="{ ready: player.ready }"
                 ng-style="rematch ? {opacity: 0.4, 'pointer-events': 'none'} : {}"
             >{{ player.ready ? '✓ Ready' : 'Ready?' }}{{ (room.players.items | filter:{local: true}).length > 1 ? ' · ' + player.name : '' }}</button>
-            <button type="button" class="start-now" ng-click="launch()" ng-if="(master || launching) && !rematch" ng-disabled="master && !launching && !(enoughPlayers() && othersReady())" title="{{ (master && !launching && !enoughPlayers()) ? 'Need at least ' + minPlayers + ' players to start' : (master && !launching && !othersReady()) ? 'Waiting for every player to be ready' : '' }}">
+            <button type="button" class="start-now" ng-click="launch()" ng-if="(master || launching) && !rematch && !pay" ng-disabled="master && !launching && !(enoughPlayers() && othersReady())" title="{{ (master && !launching && !enoughPlayers()) ? 'Need at least ' + minPlayers + ' players to start' : (master && !launching && !othersReady()) ? 'Waiting for every player to be ready' : '' }}">
                 <span class="label" ng-if="!launching">{{ (enoughPlayers() && othersReady()) ? 'Start now!' : 'Waiting for players…' }}</span>
                 <span id="starter-count" ng-if="launching">{{ launching }}</span>
             </button>
@@ -168,6 +176,11 @@
 /* Rematch (Pong's .rematch-box) */
 .kurver-rematch{margin:0 0 18px;padding:12px 16px;border-radius:10px;background:rgba(180,80,255,0.1);border:1px solid rgba(180,80,255,0.4);color:#e6ccff;font-size:14px;font-weight:600;}
 .kurver-rematch span{color:inherit;}
+.kurver-pay{margin:0 0 18px;padding:14px 16px;border-radius:10px;background:rgba(255,210,74,0.08);border:1px solid rgba(255,210,74,0.5);color:#FFE7A0;font-size:14px;font-weight:600;line-height:1.45;}
+.kurver-pay div{color:inherit;}
+.kurver-pay-btn{display:inline-block;margin-top:10px;background:#FFD24A;color:#1a1200 !important;text-decoration:none !important;padding:10px 20px;font-size:14px;font-weight:700;border-radius:8px;}
+.kurver-pay .kurver-pay-paid{margin-top:8px;color:#4CFF6C;}
+.kurver-pay .kurver-pay-sub{margin-top:8px;font-size:12px;font-weight:500;color:rgba(255,231,160,0.7);}
 .kurver-rematch button{margin-left:12px;background:#b450ff;color:#fff;border:none;padding:8px 18px;font-size:13px;font-weight:700;border-radius:8px;cursor:pointer;}
 
 /* Players (Pong's #players-table) */

@@ -57,13 +57,12 @@ function authenticateUpgrade(requestUrl) {
 }
 
 // ── Prize ────────────────────────────────────────────────────────────────────
-// Same rule as Puz Royale's prize.ts today: no minimum player count.
-//   n = 3 → $5;  otherwise $2 × (n − 1), floored at $0
-//   e.g. 1→$0, 2→$2, 4→$6, 5→$8, 6→$10
+// The pot: $2 × (n − 1) — every player's $2 entry except one (TENTEN's),
+// floored at $0. A game needs 3+ players to start (RoomController), so
+//   3→$4, 4→$6, 5→$8, 6→$10, 8→$14, 10→$18.
 // n = the real accounts in the game when it started (frozen then).
 function prize(startedPlayers) {
     const n = Math.floor(Number(startedPlayers) || 0);
-    if (n === 3) return 5;
     return Math.max(0, 2 * (n - 1));
 }
 
@@ -143,10 +142,11 @@ async function creditWin(opts) {
 // One structured row per paid game, written inside the credit transaction right
 // after the game_wins claim — exactly-once on the same key as the credit. Same
 // tables (shared database) as FIFA and Pong write; identical idempotent DDL.
-// Raw facts only. entries_charged stays false until entry charging exists:
-// until then entry_price / paying_players / entry_total / margin are the listed
-// $2 × the accounts in the game, and nothing was actually collected — readers
-// must count only entries_charged = true for money really paid in.
+// Raw facts only. entries_charged is true when the entries were really paid
+// (kurver-pay.js: match_payments rows with this game's key); otherwise
+// entry_price / paying_players / entry_total / margin are the listed $2 × the
+// accounts in the game and nothing was collected — readers must count only
+// entries_charged = true for money really paid in.
 const KURVER_ENTRY_PRICE = '2.00';
 
 // The three services may start at the same moment: the DDL runs in one
@@ -197,11 +197,15 @@ if (process.env.DATABASE_URL) { migrateSettledMatches(); }
 async function recordSettledMatch(client, m) {
     await client.query('SAVEPOINT settled_match');
     try {
+        const hasPayments = (await client.query(`SELECT to_regclass('public.match_payments') AS t`)).rows[0].t;
+        const paidEntries = hasPayments
+            ? (await client.query(`SELECT COUNT(*)::int AS n FROM match_payments WHERE match_key = $1 AND status = 'paid'`, [m.matchKey])).rows[0].n
+            : 0;
         await client.query(
-            `INSERT INTO settled_matches (match_key, game, winner_user_id, prize, entry_price, paying_players, entry_total, margin)
-             VALUES ($1, 'kurver', $2, $3::numeric, $4::numeric, $5::int, $4::numeric * $5::int, $4::numeric * $5::int - $3::numeric)
+            `INSERT INTO settled_matches (match_key, game, winner_user_id, prize, entry_price, paying_players, entry_total, margin, entries_charged)
+             VALUES ($1, 'kurver', $2, $3::numeric, $4::numeric, $5::int, $4::numeric * $5::int, $4::numeric * $5::int - $3::numeric, $6)
              ON CONFLICT (match_key) DO NOTHING`,
-            [m.matchKey, m.winnerUserId, m.prize, KURVER_ENTRY_PRICE, m.payingPlayers]
+            [m.matchKey, m.winnerUserId, m.prize, KURVER_ENTRY_PRICE, paidEntries > 0 ? paidEntries : m.payingPlayers, paidEntries > 0]
         );
         await client.query(`INSERT INTO settled_match_players (match_key, user_id, outcome) VALUES ($1, $2, 'won') ON CONFLICT DO NOTHING`, [m.matchKey, m.winnerUserId]);
         for (const id of m.loserUserIds) {
