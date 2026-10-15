@@ -478,8 +478,9 @@ RoomController.prototype.minPlayers = 3;
  * flat $2 on Stripe's page; the payment counts when Stripe's webhook confirms
  * it. When all have paid, the game starts as soon as everyone is back on the
  * page (at most returnGrace later — a player still away then plays from away,
- * which loses, as any drop does). Refunds only when the game can't happen:
- * someone didn't pay in time / left first, or a system error.
+ * which loses, as any drop does). When the game can't happen through no
+ * fault of a payer (someone didn't pay in time / left first, a system error)
+ * their entry becomes Play Credit — nothing is ever refunded to a card.
  *
  * @type {Number}
  */
@@ -489,7 +490,7 @@ RoomController.prototype.returnGrace = Number(process.env.KURVER_PAY_RETURN_GRAC
  * Open the payment window for the players in the room now (the first READY
  * with entry fees on): no one can join or be kicked until it closes; every
  * player has PAY_WINDOW_MS (3 min) to press READY and pay — if anyone doesn't,
- * every entry paid is refunded.
+ * every entry paid becomes Play Credit.
  *
  * @return {Object} the window
  */
@@ -521,7 +522,7 @@ RoomController.prototype.openPaymentWindow = function()
     var secs = Math.round(KurverPay.PAY_WINDOW_MS / 1000),
         clock = Math.floor(secs / 60) + ':' + ('0' + (secs % 60)).slice(-2);
     console.info('[entry-fees] room "%s": payment window %s — $2 each, %d players, $%d pot', this.room.name, pw.attemptId, players.length, pot);
-    this.systemLine('Entry $2 each — ' + players.length + ' players, $' + pot + ' pot. Everyone has ' + clock + ' to press READY and pay — if anyone doesn\'t, every entry paid is refunded.');
+    this.systemLine('Entry $2 each — ' + players.length + ' players, $' + pot + ' pot. Everyone has ' + clock + ' to press READY and pay — if anyone doesn\'t, every entry paid comes back as Play Credit.');
     this.sendPayPrompts();
     return pw;
 };
@@ -564,14 +565,46 @@ RoomController.prototype.readyToPay = function(client, player, callback)
     };
     if (pw.urls[uid]) { return go(); }
 
+    // One READY at a time per player: a second tap while the first is still
+    // being handled does nothing.
+    this.payingNow = this.payingNow || {};
+    if (this.payingNow[uid]) { return; }
+    this.payingNow[uid] = true;
+    var done = function () { delete controller.payingNow[uid]; };
+
+    // Play Credit covers the whole $2? Then it pays — nothing charged to the
+    // card. Less than $2: credit untouched, card as normal.
+    KurverPay.payWithCredit({
+        game: 'kurver', attemptId: pw.attemptId, userId: uid,
+        amountCents: KurverPay.ENTRY_CENTS, prize: pw.pot.toFixed(2)
+    }).then(function (byCredit) {
+        if (!byCredit) { return controller.payByCard(client, pw, uid, go); }
+        if (controller.payment !== pw || pw.closing || !controller.paymentConfirmed(byCredit)) {
+            return KurverPay.creditRow(byCredit, 'attempt_gone');   // window closed meanwhile: the credit goes back
+        }
+        client.addEvent('room:pay:credit', {message: 'Entry $2.00 — paid with your Play Credit.'});
+    }).then(done, done);
+};
+
+/**
+ * Open this player's Stripe Checkout (flat $2) and send their page to it.
+ *
+ * @param {SocketClient} client
+ * @param {Object} pw
+ * @param {Number} uid
+ * @param {Function} go
+ */
+RoomController.prototype.payByCard = function(client, pw, uid, go)
+{
+    var controller = this;
     var base = String(process.env.BASE_URL || '').replace(/\/$/, '');
-    KurverPay.openPayment({
+    return KurverPay.openPayment({
         game: 'kurver', attemptId: pw.attemptId, userId: uid,
         amountCents: KurverPay.ENTRY_CENTS, prize: pw.pot.toFixed(2),
         productName: 'Kurver entry — ' + pw.userIds.length + ' players, $' + pw.pot + ' pot',
         successUrl: base + '/multiplayer?paid=1', cancelUrl: base + '/multiplayer?paid=0'
     }).then(function (out) {
-        if (controller.payment !== pw || pw.closing) { return; }
+        if (controller.payment !== pw || pw.closing || !out.url) { return; }
         pw.urls[uid] = out.url;
         go();
     }).catch(function (error) {
@@ -640,7 +673,7 @@ RoomController.prototype.sendPayPrompts = function()
 
 /**
  * Stripe's webhook confirmed a payment for this room's attempt. false = it
- * can't be used (the caller refunds it).
+ * can't be used (the caller turns it into Play Credit).
  *
  * @param {Object} row
  *
@@ -685,13 +718,12 @@ RoomController.prototype.startPaidGameWhenBack = function()
     this.payment = null;
     var game = this.room.newGame(), controller = this;
     if (!game) {
-        console.error('[entry-fees] room "%s": game couldn\'t be started after all paid — refunding', this.room.name);
+        console.error('[entry-fees] room "%s": game couldn\'t be started after all paid — entries become Play Credit', this.room.name);
         KurverPay.attemptRows(pw.attemptId).then(function (rows) {
             return Promise.all(rows.filter(function (r) { return r.status === 'paid' && !r.match_key; })
-                .map(function (r) { return KurverPay.refundRow(r, 'match_start_failed'); }));
-        }).catch(function (e) { console.error('[entry-fees] refunds failed — the recovery sweep will retry:', e); });
-        this.systemLine('The game couldn\'t be started — every entry has been refunded. Try again.');
-        this.socketGroup.addEvent('room:pay:cancelled', {message: 'The game couldn\'t be started — every entry has been refunded.'});
+                .map(function (r) { return KurverPay.creditRow(r, 'match_start_failed').then(function (ok) { return ok ? r.user_id : null; }); }));
+        }).catch(function (e) { console.error('[entry-fees] Play Credit failed — the recovery sweep will retry:', e); return []; })
+          .then(function (ids) { controller.tellNoFault('The game couldn\'t be started', 'match_start_failed', (ids || []).filter(Boolean)); });
         return;
     }
     // The pot is what was paid for: every paid entry except one, even if a
@@ -705,8 +737,8 @@ RoomController.prototype.startPaidGameWhenBack = function()
 };
 
 /**
- * The window ends without a game: unpaid Checkouts closed, anyone who paid
- * refunded (the game couldn't happen through no fault of theirs).
+ * The window ends without a game: unpaid Checkouts closed; anyone who paid
+ * gets it as Play Credit (the game couldn't happen through no fault of theirs).
  *
  * @param {String} message
  * @param {String} reason
@@ -728,17 +760,43 @@ RoomController.prototype.cancelPaymentWindow = function(message, reason)
         }
     }
     KurverPay.cancelAttempt(pw.attemptId, reason).then(function (out) {
-        return out.refunded;
+        return out.credited;
     }).catch(function (e) {
-        console.error('[entry-fees] cancelling %s failed — the recovery sweep will refund any payment:', pw.attemptId, e);
+        console.error('[entry-fees] cancelling %s failed — the recovery sweep will turn any payment into Play Credit:', pw.attemptId, e);
         return [];
-    }).then(function (refunded) {
-        var names = controller.room.players.items.filter(function (p) { return refunded.indexOf(p.client.userId) >= 0; }).map(function (p) { return p.name; });
-        var text = message + (names.length ? ' — ' + names.join(', ') + (names.length > 1 ? ' have' : ' has') + ' been refunded $2.' : '. No one was charged.');
+    }).then(function (credited) {
         console.info('[entry-fees] room "%s": window %s cancelled (%s)', controller.room.name, pw.attemptId, reason);
-        controller.systemLine(text);
-        controller.socketGroup.addEvent('room:pay:cancelled', {message: text});
+        controller.tellNoFault(message, reason, credited);
     });
+};
+
+/**
+ * Tell the room a payment window ended without a game: a player who paid
+ * hears about their Play Credit (a perk, never a refund); everyone else just
+ * that the game didn't start.
+ *
+ * @param {String} message
+ * @param {String} reason
+ * @param {Array} credited  user ids whose entry became Play Credit
+ */
+RoomController.prototype.tellNoFault = function(message, reason, credited)
+{
+    var why = {
+            payment_timeout: 'Not everyone paid in time',
+            left_before_start: 'A player left before the game started',
+            match_start_failed: 'The game couldn\'t start',
+            system_error: 'The game couldn\'t start'
+        }[reason] || 'The game couldn\'t start',
+        plain = message + ' — the game didn\'t start.';
+    this.systemLine(plain + (credited.length ? ' Any entry paid is now Play Credit.' : ''));
+    for (var i = this.clients.items.length - 1; i >= 0; i--) {
+        var client = this.clients.items[i];
+        client.addEvent('room:pay:cancelled', {
+            message: client.userId && credited.indexOf(client.userId) >= 0
+                ? why + ' — we\'ve added $2.00 Play Credit to your account to jump into another game.'
+                : plain
+        });
+    }
 };
 
 /**
@@ -1424,7 +1482,7 @@ RoomController.prototype.onPlayerLeave = function(data)
     this.socketGroup.addEvent('room:leave', {player: data.player.id});
 
     // Entries being collected: the game can't happen as it was paid for —
-    // the window closes and anyone who paid is refunded. (Once every entry
+    // the window closes and anyone who paid gets Play Credit. (Once every entry
     // is paid, a player who leaves just loses theirs.)
     if (this.payment && !this.payment.allPaid) {
         this.cancelPaymentWindow(data.player.name + ' left before the game started', 'left_before_start');

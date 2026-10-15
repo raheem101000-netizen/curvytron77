@@ -3646,6 +3646,7 @@ function RoomController($scope, $routeParams, $location, client, repository, pro
     this.onRematch        = this.onRematch.bind(this);
     this.onPay            = this.onPay.bind(this);
     this.onFees           = this.onFees.bind(this);
+    this.onPayCredit      = this.onPayCredit.bind(this);
     this.onPayCancelled   = this.onPayCancelled.bind(this);
     this.tickPay          = this.tickPay.bind(this);
 
@@ -3816,6 +3817,7 @@ RoomController.prototype.attachEvents = function()
     this.repository.on('room:pay', this.onPay);
     this.repository.on('room:pay:cancelled', this.onPayCancelled);
     this.repository.on('room:fees', this.onFees);
+    this.repository.on('room:pay:credit', this.onPayCredit);
     this.setRematch(this.repository.rematch);
     this.client.on('room:kicked', this.onKicked);
     this.client.on('room:superseded', this.onSuperseded);
@@ -3848,6 +3850,7 @@ RoomController.prototype.detachEvents = function()
     this.repository.off('room:pay', this.onPay);
     this.repository.off('room:pay:cancelled', this.onPayCancelled);
     this.repository.off('room:fees', this.onFees);
+    this.repository.off('room:pay:credit', this.onPayCredit);
     if (this.payInterval) { this.payInterval = clearInterval(this.payInterval); }
     this.client.off('room:kicked', this.onKicked);
     this.client.off('room:superseded', this.onSuperseded);
@@ -3974,6 +3977,17 @@ RoomController.prototype.onPay = function(e)
     // The answer to our own READY: straight to our Stripe Checkout (same tab;
     // the room is rejoined when we come back).
     if (e.detail && e.detail.go && e.detail.url) { window.location.href = e.detail.url; }
+};
+
+/**
+ * Play Credit paid our whole entry (nothing charged to the card).
+ *
+ * @param {Event} e
+ */
+RoomController.prototype.onPayCredit = function(e)
+{
+    if (e.detail && e.detail.message) { this.showToast(e.detail.message); }
+    this.requestDigestScope();
 };
 
 /**
@@ -8916,6 +8930,7 @@ RoomRepository.prototype.attachEvents = function()
     this.client.on('room:pay', this.forwardEvent);
     this.client.on('room:pay:cancelled', this.forwardEvent);
     this.client.on('room:fees', this.forwardEvent);
+    this.client.on('room:pay:credit', this.forwardEvent);
 };
 
 /**
@@ -8948,6 +8963,7 @@ RoomRepository.prototype.detachEvents = function()
     this.client.off('room:pay', this.forwardEvent);
     this.client.off('room:pay:cancelled', this.forwardEvent);
     this.client.off('room:fees', this.forwardEvent);
+    this.client.off('room:pay:credit', this.forwardEvent);
 };
 
 /**
