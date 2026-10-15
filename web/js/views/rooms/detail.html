@@ -31,7 +31,7 @@
         <!-- Entry fee and the live prize for the players in the room -->
         <div class="kl-stakes">
             <div class="kl-stake"><div class="kl-stake-label">ENTRY FEE</div><div class="kl-stake-val">$2</div></div>
-            <div class="kl-stake"><div class="kl-stake-label">PRIZE</div><div class="kl-stake-val prize-counter">{{ prizeLabel() }}</div></div>
+            <div class="kl-stake"><div class="kl-stake-label">PRIZE</div><div class="kl-stake-val prize-counter">{{ enoughPlayers() ? prizeLabel() : 'Prize appears at ' + minPlayers + '+ players' }}</div></div>
         </div>
 
         <div class="kurver-rematch" ng-if="rematch">
