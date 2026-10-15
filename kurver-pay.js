@@ -14,8 +14,8 @@ const { pool } = require('./kurver-money.js');
  *   match_payments: one row per player per payment ATTEMPT (attempt_id,
  *   user_id unique): who, which game/attempt, the server-computed amount, the
  *   Stripe Checkout session + PaymentIntent, and status
- *     pending → paid → (credited: Play Credit)   or   pending → expired
- *   paid_with: 'card' (Stripe) or 'credit' (Play Credit)
+ *     pending → paid → (credited: Refund Balance)   or   pending → expired
+ *   paid_with: 'card' (Stripe) or 'credit' (Refund Balance)
  *   match_key ('kurver:<gameKey>') is filled in when the match starts.
  *
  * Rules (the money ones):
@@ -28,7 +28,7 @@ const { pool } = require('./kurver-money.js');
  *  - Nothing is ever refunded to a card. When the match can't happen for a
  *    reason that isn't the payer's (the other player didn't pay in time /
  *    left before paying, a payment landed after the window, the match couldn't
- *    start, a restart), the entry becomes the player's PLAY CREDIT (creditRow):
+ *    start, a restart), the entry becomes the player's REFUND BALANCE (creditRow):
  *    not cashable, spendable only on a whole entry (payWithCredit). A player
  *    who paid and then quits / drops / loses gets nothing back.
  *
@@ -102,10 +102,10 @@ async function migrateMatchPayments() {
     await c.query(`CREATE INDEX IF NOT EXISTS match_payments_match_idx ON match_payments (match_key)`);
     await c.query(`CREATE INDEX IF NOT EXISTS match_payments_user_idx ON match_payments (user_id)`);
 
-    // Play Credit: a second, NON-cashable balance (users.play_credit) — an
+    // Refund Balance: a second, NON-cashable balance (users.play_credit) — an
     // entry paid for a match that couldn't happen through no fault of the
-    // player becomes Play Credit (the card charge stays captured; nothing is
-    // ever refunded to a card). Play Credit only ever pays a WHOLE entry.
+    // player becomes Refund Balance (the card charge stays captured; nothing is
+    // ever refunded to a card). Refund Balance only ever pays a WHOLE entry.
     await c.query(`ALTER TABLE match_payments ADD COLUMN IF NOT EXISTS paid_with TEXT NOT NULL DEFAULT 'card'`);
     await c.query(`ALTER TABLE match_payments ADD COLUMN IF NOT EXISTS credit_reason TEXT`);
     await c.query(`ALTER TABLE match_payments ADD COLUMN IF NOT EXISTS credited_at TIMESTAMPTZ`);
@@ -164,7 +164,7 @@ async function openPayment(p) {
   const row = (await pool.query(`SELECT * FROM match_payments WHERE attempt_id = $1 AND user_id = $2`, [p.attemptId, p.userId])).rows[0];
   if (row.amount_cents !== p.amountCents) throw new Error(`payment ${row.id}: amount changed mid-attempt`);
   if (row.checkout_url) return { url: row.checkout_url, row };
-  // Already settled (e.g. paid with Play Credit a moment ago): never open a
+  // Already settled (e.g. paid with Refund Balance a moment ago): never open a
   // card Checkout for it.
   if (row.status !== "pending") return { url: "", row };
 
@@ -238,11 +238,11 @@ async function creditRow(row, reason) {
       [r.user_id, amount, bal.rows[0].play_credit, reason, r.game, r.id]
     );
     await c.query('COMMIT');
-    console.log(`[entry-fees] payment ${r.id}: $${amount} → Play Credit for user ${r.user_id} (${reason}); balance $${bal.rows[0].play_credit}`);
+    console.log(`[entry-fees] payment ${r.id}: $${amount} → Refund Balance for user ${r.user_id} (${reason}); balance $${bal.rows[0].play_credit}`);
     return true;
   } catch (e) {
     await c.query('ROLLBACK').catch(() => {});
-    console.error(`[entry-fees] PLAY CREDIT FAILED for payment ${row.id} (user ${row.user_id}, ${row.amount_cents}¢, ${reason}) — the recovery sweep retries; add it by hand if it keeps failing:`, e);
+    console.error(`[entry-fees] REFUND BALANCE FAILED for payment ${row.id} (user ${row.user_id}, ${row.amount_cents}¢, ${reason}) — the recovery sweep retries; add it by hand if it keeps failing:`, e);
     return false;
   } finally {
     c.release();
@@ -250,7 +250,7 @@ async function creditRow(row, reason) {
 }
 
 /**
- * Pay this entry with Play Credit — only if the player's Play Credit covers
+ * Pay this entry with Refund Balance — only if the player's Refund Balance covers
  * the WHOLE entry (never split with a card), and only if they have no payment
  * yet for this attempt. Deducts exactly the entry, writes the payment row as
  * paid (paid_with 'credit') and the ledger line, in one transaction. Returns
@@ -281,11 +281,11 @@ async function payWithCredit(p) {
       [p.userId, `-${amount}`, bal.rows[0].play_credit, p.game, ins.rows[0].id]
     );
     await c.query('COMMIT');
-    console.log(`[entry-fees] payment ${ins.rows[0].id}: user ${p.userId} paid the $${amount} entry with Play Credit (left $${bal.rows[0].play_credit})`);
+    console.log(`[entry-fees] payment ${ins.rows[0].id}: user ${p.userId} paid the $${amount} entry with Refund Balance (left $${bal.rows[0].play_credit})`);
     return ins.rows[0];
   } catch (e) {
     await c.query('ROLLBACK').catch(() => {});
-    console.error(`[entry-fees] Play Credit payment failed for user ${p.userId} (attempt ${p.attemptId}) — card flow instead:`, e);
+    console.error(`[entry-fees] Refund Balance payment failed for user ${p.userId} (attempt ${p.attemptId}) — card flow instead:`, e);
     return null;
   } finally {
     c.release();
@@ -294,7 +294,7 @@ async function payWithCredit(p) {
 
 /**
  * The attempt won't become a match: close the Checkouts still open; whoever
- * already paid gets it as Play Credit. A Checkout that can't be closed because
+ * already paid gets it as Refund Balance. A Checkout that can't be closed because
  * it just completed is left alone — its webhook arrives, finds the attempt
  * gone and credits it then.
  */
@@ -321,7 +321,7 @@ async function cancelAttempt(attemptId, reason) {
 /**
  * Who handles a confirmed payment: the lobby room collecting that attempt.
  * A handler returns false when it can't use the payment; an attempt nobody
- * is watching (cancelled, restarted) — the payment then becomes Play Credit.
+ * is watching (cancelled, restarted) — the payment then becomes Refund Balance.
  */
 const watchers = new Map();
 function watchAttempt(attemptId, h) { watchers.set(attemptId, h); }
@@ -381,7 +381,7 @@ async function settlePaid(game, cs) {
   const handler = watchers.get(paid.attempt_id);
   if (!handler || !handler(paid)) {
     // Paid for an attempt that no longer exists (window closed, server
-    // restarted): no match will come of it — a no-fault case: Play Credit.
+    // restarted): no match will come of it — a no-fault case: Refund Balance.
     await creditRow(paid, "attempt_gone");
   }
 }
@@ -391,7 +391,7 @@ async function settlePaid(game, cs) {
 /**
  * Money taken with no match: paid rows of this game that never got a match
  * key, older than the payment window (+ grace), whose attempt isn't live —
- * become Play Credit. Old pending rows are closed. Runs at boot and every minute.
+ * become Refund Balance. Old pending rows are closed. Runs at boot and every minute.
  */
 async function recoverStranded(game, isLive = attemptIsLive) {
   const cutoff = `${Math.ceil((PAY_WINDOW_MS + 120_000) / 1000)} seconds`;

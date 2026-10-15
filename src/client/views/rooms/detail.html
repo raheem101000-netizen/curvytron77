@@ -42,7 +42,7 @@
 
         <!-- Entry fees: the payment window after the host's Start (server: kurver-pay.js) -->
         <div class="kurver-pay" ng-if="pay">
-            <div>Everyone has {{ payClock }} to pay — if anyone doesn't, every entry paid comes back as Play Credit.</div>
+            <div>Everyone has {{ payClock }} to pay — if anyone doesn't, every entry paid is refunded to the payer's Refund Balance.</div>
             <div class="kurver-pay-paid" ng-if="pay.paid">✓ You've paid — you're ready</div>
             <div class="kurver-pay-sub">{{ pay.allPaid ? 'Everyone has paid — starting as soon as all players are back…' : (pay.paid ? (pay.waiting.length ? 'Waiting for ' + pay.waiting.join(', ') + ' to pay…' : '') : 'Entry $2 — ' + pay.players + ' players, $' + pay.pot + ' pot. Press READY to pay.') }}</div>
         </div>

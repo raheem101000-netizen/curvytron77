@@ -377,7 +377,7 @@ RoomController.prototype.onPay = function(e)
 };
 
 /**
- * Play Credit paid our whole entry (nothing charged to the card).
+ * Refund Balance paid our whole entry (nothing charged to the card).
  *
  * @param {Event} e
  */
