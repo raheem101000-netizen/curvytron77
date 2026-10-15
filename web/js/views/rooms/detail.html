@@ -40,13 +40,7 @@
             <button type="button" ng-if="!rematchMine" ng-click="requestRematch()">REMATCH</button>
         </div>
 
-        <p class="kl-players-count">
-            <ng-pluralize count="room.players.items.length" when="{
-                '0': 'No player',
-                'one': '1 player',
-                'other': '{} players'}"
-            />
-        </p>
+        <p class="kl-players-count">{{ room.players.items.length }} joined · {{ enoughPlayers() ? 'ready to start' : 'need at least ' + minPlayers + ' to start' }}</p>
 
         <div class="room-details">
             <table class="room-players">
@@ -135,8 +129,8 @@
                 ng-class="{ ready: player.ready }"
                 ng-style="rematch ? {opacity: 0.4, 'pointer-events': 'none'} : {}"
             >{{ player.ready ? '✓ Ready' : 'Ready?' }}{{ (room.players.items | filter:{local: true}).length > 1 ? ' · ' + player.name : '' }}</button>
-            <button type="button" class="start-now" ng-click="launch()" ng-if="(master || launching) && !rematch" ng-disabled="master && !launching && !othersReady()" title="{{ (master && !launching && !othersReady()) ? 'Waiting for every player to be ready' : '' }}">
-                <span class="label" ng-if="!launching">{{ othersReady() ? 'Start now!' : 'Waiting for players…' }}</span>
+            <button type="button" class="start-now" ng-click="launch()" ng-if="(master || launching) && !rematch" ng-disabled="master && !launching && !(enoughPlayers() && othersReady())" title="{{ (master && !launching && !enoughPlayers()) ? 'Need at least ' + minPlayers + ' players to start' : (master && !launching && !othersReady()) ? 'Waiting for every player to be ready' : '' }}">
+                <span class="label" ng-if="!launching">{{ (enoughPlayers() && othersReady()) ? 'Start now!' : 'Waiting for players…' }}</span>
                 <span id="starter-count" ng-if="launching">{{ launching }}</span>
             </button>
         </div>

@@ -3662,6 +3662,8 @@ function RoomController($scope, $routeParams, $location, client, repository, pro
     this.$scope.toggleParameters  = this.toggleParameters;
     this.$scope.copyCode          = this.copyCode.bind(this);
     this.$scope.othersReady       = this.othersReady.bind(this);
+    this.$scope.enoughPlayers     = this.enoughPlayers.bind(this);
+    this.$scope.minPlayers        = this.minPlayers;
     this.$scope.requestRematch    = this.requestRematch.bind(this);
     this.$scope.rematch           = null;
     this.$scope.rematchMine       = false;
@@ -3858,11 +3860,29 @@ RoomController.prototype.launch = function()
 {
     if (this.$scope.rematch) { return; }
 
-    // "Start now!" needs every other player ready (the server checks too);
-    // pressing it during the countdown cancels, as before.
-    if (this.repository.amIMaster() && (this.$scope.launching || this.othersReady())) {
+    // "Start now!" needs 3+ players and every other player ready (the server
+    // checks too); pressing it during the countdown cancels, as before.
+    if (this.repository.amIMaster() && (this.$scope.launching || (this.enoughPlayers() && this.othersReady()))) {
         this.repository.launch();
     }
+};
+
+/**
+ * Kurver needs at least this many players in the room to start (the server
+ * enforces the same minimum).
+ *
+ * @type {Number}
+ */
+RoomController.prototype.minPlayers = 3;
+
+/**
+ * Enough players in the room to start?
+ *
+ * @return {Boolean}
+ */
+RoomController.prototype.enoughPlayers = function()
+{
+    return !!this.room && this.room.players.items.length >= this.minPlayers;
 };
 
 /**

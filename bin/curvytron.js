@@ -3528,14 +3528,22 @@ RoomController.prototype.launch = function()
 };
 
 /**
- * Can "Start now!" start? Every non-host player ready (and here).
+ * Can "Start now!" start? At least minPlayers in the room (one player per
+ * account), and every non-host player ready (and here).
  *
  * @return {Boolean}
  */
 RoomController.prototype.canStart = function()
 {
-    return this.othersReady();
+    return this.room.players.count() >= this.minPlayers && this.othersReady();
 };
+
+/**
+ * Kurver is a 3+ player game: no match starts with fewer in the room.
+ *
+ * @type {Number}
+ */
+RoomController.prototype.minPlayers = 3;
 
 /**
  * Clear everyone's Ready (the host role passed to someone else) and stop a
@@ -4170,7 +4178,8 @@ RoomController.prototype.onLaunch = function(client)
             this.startLaunch();
         } else {
             var away = this.awayNames();
-            client.addEvent('room:launch:refused', {error: away.length ? 'Waiting for ' + away.join(', ') + ' to come back.'
+            client.addEvent('room:launch:refused', {error: this.room.players.count() < this.minPlayers ? 'Need at least ' + this.minPlayers + ' players to start.'
+                : away.length ? 'Waiting for ' + away.join(', ') + ' to come back.'
                 : 'Waiting for every player to be ready.'});
         }
     }
@@ -4195,6 +4204,9 @@ RoomController.prototype.onPlayerJoin = function(data)
 RoomController.prototype.onPlayerLeave = function(data)
 {
     this.socketGroup.addEvent('room:leave', {player: data.player.id});
+
+    // Below the minimum now? A running countdown stops (back to waiting).
+    this.checkLaunch();
 
     // Not when the host has just left: the role passes first (and that
     // clears Ready), so whoever is left isn't thrown into a game at once.
