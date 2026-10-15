@@ -37,7 +37,7 @@ const { pool } = require('./kurver-money.js');
 
 const MIGRATION_LOCK = 727274;   // the shared-table migration lock
 const ENTRY_CENTS = 200;          // Kurver: $2 per player, always
-const PAY_WINDOW_MS = Number(process.env.ENTRY_PAY_WINDOW_MS) || 90000;   // from the first READY: everyone must have paid
+const PAY_WINDOW_MS = Number(process.env.ENTRY_PAY_WINDOW_MS) || 180000;   // 3 minutes from the first READY: everyone must have paid
 
 // ── Configuration ────────────────────────────────────────────────────────────
 

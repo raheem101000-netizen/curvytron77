@@ -3568,7 +3568,7 @@ RoomController.prototype.returnGrace = Number(process.env.KURVER_PAY_RETURN_GRAC
 /**
  * Open the payment window for the players in the room now (the first READY
  * with entry fees on): no one can join or be kicked until it closes; every
- * player has PAY_WINDOW_MS (90 s) to press READY and pay — if anyone doesn't,
+ * player has PAY_WINDOW_MS (3 min) to press READY and pay — if anyone doesn't,
  * every entry paid is refunded.
  *
  * @return {Object} the window
