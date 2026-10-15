@@ -70,6 +70,7 @@ RoomRepository.prototype.attachEvents = function()
     this.client.on('room:rematch', this.onRematch);
     this.client.on('room:pay', this.forwardEvent);
     this.client.on('room:pay:cancelled', this.forwardEvent);
+    this.client.on('room:fees', this.forwardEvent);
 };
 
 /**
@@ -101,6 +102,7 @@ RoomRepository.prototype.detachEvents = function()
     this.client.off('room:rematch', this.onRematch);
     this.client.off('room:pay', this.forwardEvent);
     this.client.off('room:pay:cancelled', this.forwardEvent);
+    this.client.off('room:fees', this.forwardEvent);
 };
 
 /**

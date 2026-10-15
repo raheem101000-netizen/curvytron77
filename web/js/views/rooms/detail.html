@@ -42,10 +42,9 @@
 
         <!-- Entry fees: the payment window after the host's Start (server: kurver-pay.js) -->
         <div class="kurver-pay" ng-if="pay">
-            <div>Entry: $2 each — {{ pay.players }} players, ${{ pay.pot }} pot. The game starts once everyone has paid.</div>
-            <a class="kurver-pay-btn" ng-if="!pay.paid && pay.url" ng-href="{{ pay.url }}" target="_self">PAY $2 →</a>
-            <div class="kurver-pay-paid" ng-if="pay.paid">✓ Your entry is paid</div>
-            <div class="kurver-pay-sub">{{ pay.allPaid ? 'Everyone has paid — starting as soon as all players are back…' : ((pay.waiting.length ? 'Waiting for ' + pay.waiting.join(', ') + ' · ' : '') + payLeft + 's left') }}</div>
+            <div>Everyone has {{ payClock }} to pay — if anyone doesn't, every entry paid is refunded.</div>
+            <div class="kurver-pay-paid" ng-if="pay.paid">✓ You've paid — you're ready</div>
+            <div class="kurver-pay-sub">{{ pay.allPaid ? 'Everyone has paid — starting as soon as all players are back…' : (pay.paid ? (pay.waiting.length ? 'Waiting for ' + pay.waiting.join(', ') + ' to pay…' : '') : 'Entry $2 — ' + pay.players + ' players, $' + pay.pot + ' pot. Press READY to pay.') }}</div>
         </div>
 
         <p class="kl-players-count">{{ room.players.items.length }} joined · {{ enoughPlayers() ? 'ready to start' : 'need at least ' + minPlayers + ' to start' }}</p>
@@ -132,12 +131,14 @@
         <div class="kurver-room-actions">
             <button type="button" class="kl-btn-ready player-ready local"
                 ng-repeat="player in room.players.items track by player.id"
-                ng-if="player.local && !pay"
+                ng-if="player.local"
+                ng-disabled="entryFees && (player.ready || !enoughPlayers())"
+                title="{{ entryFees && !player.ready && !enoughPlayers() ? 'Need at least ' + minPlayers + ' players to start' : '' }}"
                 ng-click="setReady(player)"
                 ng-class="{ ready: player.ready }"
                 ng-style="rematch ? {opacity: 0.4, 'pointer-events': 'none'} : {}"
-            >{{ player.ready ? '✓ Ready' : 'Ready?' }}{{ (room.players.items | filter:{local: true}).length > 1 ? ' · ' + player.name : '' }}</button>
-            <button type="button" class="start-now" ng-click="launch()" ng-if="(master || launching) && !rematch && !pay" ng-disabled="master && !launching && !(enoughPlayers() && othersReady())" title="{{ (master && !launching && !enoughPlayers()) ? 'Need at least ' + minPlayers + ' players to start' : (master && !launching && !othersReady()) ? 'Waiting for every player to be ready' : '' }}">
+            >{{ player.ready ? '✓ Ready' : (entryFees ? 'READY · PAY $2' : 'Ready?') }}{{ (room.players.items | filter:{local: true}).length > 1 ? ' · ' + player.name : '' }}</button>
+            <button type="button" class="start-now" ng-click="launch()" ng-if="(master || launching) && !rematch && !pay && !entryFees" ng-disabled="master && !launching && !(enoughPlayers() && othersReady())" title="{{ (master && !launching && !enoughPlayers()) ? 'Need at least ' + minPlayers + ' players to start' : (master && !launching && !othersReady()) ? 'Waiting for every player to be ready' : '' }}">
                 <span class="label" ng-if="!launching">{{ (enoughPlayers() && othersReady()) ? 'Start now!' : 'Waiting for players…' }}</span>
                 <span id="starter-count" ng-if="launching">{{ launching }}</span>
             </button>

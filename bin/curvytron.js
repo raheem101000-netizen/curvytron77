@@ -3236,6 +3236,7 @@ RoomController.prototype.attach = function(client, callback)
             rematch: this.serializeRematch()
         });
         this.sendPayPrompt(client);
+        client.addEvent('room:fees', {on: KurverPay.entryFeesRequested()});
         this.emit('client:add', { room: this.room, client: client});
     } else {
         callback({success: false, error: 'Client ' + client.id + ' already in the room.'});
@@ -3528,11 +3529,8 @@ RoomController.prototype.launch = function()
         return;
     }
 
-    // Entry fees on: a game only starts once every entry is paid.
-    if (KurverPay.entryFeesRequested()) {
-        if (!this.payment && KurverPay.entryFeesReady()) { this.openPaymentWindow(); }
-        return;
-    }
+    // Entry fees on: a game only starts once every entry is paid (READY = pay).
+    if (KurverPay.entryFeesRequested()) { return; }
 
     this.room.newGame();
 };
@@ -3568,14 +3566,18 @@ RoomController.prototype.minPlayers = 3;
 RoomController.prototype.returnGrace = Number(process.env.KURVER_PAY_RETURN_GRACE_MS) || 60000;
 
 /**
- * Open the payment window for the players in the room now.
+ * Open the payment window for the players in the room now (the first READY
+ * with entry fees on): no one can join or be kicked until it closes; every
+ * player has PAY_WINDOW_MS (90 s) to press READY and pay — if anyone doesn't,
+ * every entry paid is refunded.
+ *
+ * @return {Object} the window
  */
 RoomController.prototype.openPaymentWindow = function()
 {
-    if (this.payment) { return; }
+    if (this.payment) { return this.payment; }
     var controller = this,
         players = this.room.players.items.slice(),
-        base = String(process.env.BASE_URL || '').replace(/\/$/, ''),
         pot = KurverMoney.prize(players.length),
         pw = {
             attemptId: 'kurver-' + this.room.code + '-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8),
@@ -3592,29 +3594,68 @@ RoomController.prototype.openPaymentWindow = function()
 
     this.payment = pw;
     KurverPay.watchAttempt(pw.attemptId, function (row) { return controller.paymentConfirmed(row); });
+    pw.timer = setTimeout(function () {
+        var waiting = controller.payNames(false);
+        controller.cancelPaymentWindow((waiting.join(', ') || 'A player') + ' didn\'t pay in time', 'payment_timeout');
+    }, KurverPay.PAY_WINDOW_MS);
+    var secs = Math.round(KurverPay.PAY_WINDOW_MS / 1000),
+        clock = Math.floor(secs / 60) + ':' + ('0' + (secs % 60)).slice(-2);
+    console.info('[entry-fees] room "%s": payment window %s — $2 each, %d players, $%d pot', this.room.name, pw.attemptId, players.length, pot);
+    this.systemLine('Entry $2 each — ' + players.length + ' players, $' + pot + ' pot. Everyone has ' + clock + ' to press READY and pay — if anyone doesn\'t, every entry paid is refunded.');
+    this.sendPayPrompts();
+    return pw;
+};
 
-    var opened = players.reduce(function (chain, player) {
-        return chain.then(function () {
-            return KurverPay.openPayment({
-                game: 'kurver', attemptId: pw.attemptId, userId: player.client.userId,
-                amountCents: KurverPay.ENTRY_CENTS, prize: pot.toFixed(2),
-                productName: 'Kurver entry — ' + players.length + ' players, $' + pot + ' pot',
-                successUrl: base + '/multiplayer?paid=1', cancelUrl: base + '/multiplayer?paid=0'
-            }).then(function (out) { pw.urls[player.client.userId] = out.url; });
-        });
-    }, Promise.resolve());
+/**
+ * READY with entry fees on: open the window if there isn't one, then send
+ * this player straight to their own Stripe Checkout (flat $2, server-side —
+ * nothing from the page). Pressing READY again reuses it. The player shows
+ * as ready once Stripe's webhook confirms the payment.
+ *
+ * @param {SocketClient} client
+ * @param {Player} player
+ * @param {Function} callback
+ */
+RoomController.prototype.readyToPay = function(client, player, callback)
+{
+    var controller = this, uid = client.userId, pw;
 
-    opened.then(function () {
-        if (controller.payment !== pw) { return; }
-        pw.timer = setTimeout(function () {
-            var waiting = controller.payNames(false);
-            controller.cancelPaymentWindow((waiting.join(' and ') || 'A player') + ' didn\'t pay in time', 'payment_timeout');
-        }, KurverPay.PAY_WINDOW_MS);
-        console.info('[entry-fees] room "%s": payment window %s — $2 each, %d players, $%d pot', controller.room.name, pw.attemptId, players.length, pot);
-        controller.systemLine('Entries: $2 each — ' + players.length + ' players, $' + pot + ' pot. The game starts once everyone has paid.');
-        controller.sendPayPrompts();
+    if (!KurverPay.entryFeesReady()) {
+        client.addEvent('kurver:notice', {message: 'Payments are unavailable right now — try again later.'});
+        return callback({success: false, error: 'Payments are unavailable right now.', ready: false});
+    }
+    if (this.room.game) { return callback({success: false, error: 'Game already started.', ready: player.ready}); }
+    if (!this.payment && this.room.players.count() < this.minPlayers) {
+        client.addEvent('kurver:notice', {message: 'Need at least ' + this.minPlayers + ' players to start.'});
+        return callback({success: false, error: 'Need at least ' + this.minPlayers + ' players to start.', ready: false});
+    }
+
+    pw = this.openPaymentWindow();
+    if (pw.closing || pw.userIds.indexOf(uid) < 0) { return callback({success: false, ready: player.ready}); }
+    if (pw.paid[uid]) {
+        this.sendPayPrompt(client);
+        return callback({success: true, ready: true});
+    }
+    callback({success: true, ready: false, paying: true});
+
+    var go = function () {
+        var payload = controller.payPayload(uid);
+        if (payload) { payload.go = true; client.addEvent('room:pay', payload); }
+    };
+    if (pw.urls[uid]) { return go(); }
+
+    var base = String(process.env.BASE_URL || '').replace(/\/$/, '');
+    KurverPay.openPayment({
+        game: 'kurver', attemptId: pw.attemptId, userId: uid,
+        amountCents: KurverPay.ENTRY_CENTS, prize: pw.pot.toFixed(2),
+        productName: 'Kurver entry — ' + pw.userIds.length + ' players, $' + pw.pot + ' pot',
+        successUrl: base + '/multiplayer?paid=1', cancelUrl: base + '/multiplayer?paid=0'
+    }).then(function (out) {
+        if (controller.payment !== pw || pw.closing) { return; }
+        pw.urls[uid] = out.url;
+        go();
     }).catch(function (error) {
-        console.error('[entry-fees] couldn\'t open payments for room "%s":', controller.room.name, error);
+        console.error('[entry-fees] couldn\'t open a Checkout in room "%s":', controller.room.name, error);
         controller.cancelPaymentWindow('Payments are unavailable right now — try again', 'system_error');
     });
 };
@@ -3691,6 +3732,11 @@ RoomController.prototype.paymentConfirmed = function(row)
     if (row.game !== 'kurver' || !pw || pw.closing || pw.attemptId !== row.attempt_id || pw.userIds.indexOf(row.user_id) < 0) { return false; }
     if (!this.room.players.match(function () { return this.client && this.client.userId === row.user_id; })) { return false; }
     pw.paid[row.user_id] = true;
+    var paidPlayer = this.room.players.match(function () { return this.client && this.client.userId === row.user_id; });
+    if (paidPlayer && !paidPlayer.ready) {
+        paidPlayer.toggleReady(true);                  // the ready tick = payment confirmed by Stripe
+        this.socketGroup.addEvent('player:ready', { player: paidPlayer.id, ready: true });
+    }
     if (pw.userIds.every(function (id) { return pw.paid[id]; })) {
         pw.allPaid = true;
         if (pw.timer) { clearTimeout(pw.timer); pw.timer = null; }
@@ -4257,6 +4303,11 @@ RoomController.prototype.onReady = function(client, data, callback)
         return callback({success: false, error: 'Waiting for everyone to accept the rematch.', ready: player.ready});
     }
 
+    // Entry fees on: READY is paying (the tick comes with Stripe's confirmation).
+    if (player && KurverPay.entryFeesRequested()) {
+        return this.readyToPay(client, player, callback);
+    }
+
     if (player) {
         // Ready is one-way for everyone but the host: the first press sets it
         // (a repeat press can't un-ready), and it is always re-broadcast.
@@ -4409,8 +4460,8 @@ RoomController.prototype.onLaunch = function(client)
         return client.addEvent('room:launch:refused', {error: 'Waiting for everyone to accept the rematch.'});
     }
 
-    if (this.isRoomMaster(client) && this.payment) {
-        return client.addEvent('room:launch:refused', {error: 'Waiting for every entry to be paid.'});
+    if (this.isRoomMaster(client) && (this.payment || KurverPay.entryFeesRequested())) {
+        return client.addEvent('room:launch:refused', {error: 'The game starts as soon as everyone has paid (READY).'});
     }
 
     if (this.isRoomMaster(client)) {
@@ -4418,15 +4469,11 @@ RoomController.prototype.onLaunch = function(client)
             this.cancelLaunch();
         } else if (this.canStart()) {
             if (KurverPay.entryFeesRequested()) {
-                // Entry fees: every player pays $2 first; the game starts once
-                // all are paid (and back from Stripe's page).
-                if (!KurverPay.entryFeesReady()) {
-                    return client.addEvent('room:launch:refused', {error: 'Payments are unavailable right now — try again later.'});
-                }
-                this.openPaymentWindow();
-            } else {
-                this.startLaunch();
+                // Entry fees: each player's READY is their $2; the game starts
+                // by itself once everyone has paid.
+                return client.addEvent('room:launch:refused', {error: 'The game starts as soon as everyone has paid (READY).'});
             }
+            this.startLaunch();
         } else {
             var away = this.awayNames();
             client.addEvent('room:launch:refused', {error: this.room.players.count() < this.minPlayers ? 'Need at least ' + this.minPlayers + ' players to start.'

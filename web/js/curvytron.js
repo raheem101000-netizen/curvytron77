@@ -3645,6 +3645,7 @@ function RoomController($scope, $routeParams, $location, client, repository, pro
     this.onSuperseded     = this.onSuperseded.bind(this);
     this.onRematch        = this.onRematch.bind(this);
     this.onPay            = this.onPay.bind(this);
+    this.onFees           = this.onFees.bind(this);
     this.onPayCancelled   = this.onPayCancelled.bind(this);
     this.tickPay          = this.tickPay.bind(this);
 
@@ -3671,6 +3672,7 @@ function RoomController($scope, $routeParams, $location, client, repository, pro
     this.$scope.rematch           = null;
     this.$scope.pay               = null;   // entry fees being paid (server: room:pay)
     this.$scope.payLeft           = 0;
+    this.$scope.entryFees         = false;  // entry fees on: READY = pay $2, no Start
     this.$scope.rematchMine       = false;
     this.onKicked                 = this.onKicked.bind(this);
     this.$scope.prizeLabel        = this.prizeLabel;
@@ -3813,6 +3815,7 @@ RoomController.prototype.attachEvents = function()
     this.repository.on('room:rematch', this.onRematch);
     this.repository.on('room:pay', this.onPay);
     this.repository.on('room:pay:cancelled', this.onPayCancelled);
+    this.repository.on('room:fees', this.onFees);
     this.setRematch(this.repository.rematch);
     this.client.on('room:kicked', this.onKicked);
     this.client.on('room:superseded', this.onSuperseded);
@@ -3844,6 +3847,7 @@ RoomController.prototype.detachEvents = function()
     this.repository.off('room:rematch', this.onRematch);
     this.repository.off('room:pay', this.onPay);
     this.repository.off('room:pay:cancelled', this.onPayCancelled);
+    this.repository.off('room:fees', this.onFees);
     if (this.payInterval) { this.payInterval = clearInterval(this.payInterval); }
     this.client.off('room:kicked', this.onKicked);
     this.client.off('room:superseded', this.onSuperseded);
@@ -3967,6 +3971,20 @@ RoomController.prototype.onPay = function(e)
     this.$scope.pay = e.detail;
     if (!this.payInterval) { this.payInterval = setInterval(this.tickPay, 1000); }
     this.tickPay();
+    // The answer to our own READY: straight to our Stripe Checkout (same tab;
+    // the room is rejoined when we come back).
+    if (e.detail && e.detail.go && e.detail.url) { window.location.href = e.detail.url; }
+};
+
+/**
+ * Entry fees on or off for this room (READY = pay $2, no Start).
+ *
+ * @param {Event} e
+ */
+RoomController.prototype.onFees = function(e)
+{
+    this.$scope.entryFees = !!(e.detail && e.detail.on);
+    this.requestDigestScope();
 };
 
 /**
@@ -3980,6 +3998,7 @@ RoomController.prototype.tickPay = function()
         return;
     }
     this.$scope.payLeft = Math.max(0, Math.ceil((pay.deadline - Date.now()) / 1000));
+    this.$scope.payClock = Math.floor(this.$scope.payLeft / 60) + ':' + ('0' + this.$scope.payLeft % 60).slice(-2);
     this.requestDigestScope();
 };
 
@@ -8896,6 +8915,7 @@ RoomRepository.prototype.attachEvents = function()
     this.client.on('room:rematch', this.onRematch);
     this.client.on('room:pay', this.forwardEvent);
     this.client.on('room:pay:cancelled', this.forwardEvent);
+    this.client.on('room:fees', this.forwardEvent);
 };
 
 /**
@@ -8927,6 +8947,7 @@ RoomRepository.prototype.detachEvents = function()
     this.client.off('room:rematch', this.onRematch);
     this.client.off('room:pay', this.forwardEvent);
     this.client.off('room:pay:cancelled', this.forwardEvent);
+    this.client.off('room:fees', this.forwardEvent);
 };
 
 /**
