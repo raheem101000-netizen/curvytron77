@@ -56,6 +56,33 @@ RoomsController.prototype = Object.create(AbstractController.prototype);
 RoomsController.prototype.constructor = RoomsController;
 
 /**
+ * Was this page reached with the browser's Back/Forward, or restored from the
+ * back/forward cache? Then a held seat doesn't pull the lobby forward into its
+ * room; a fresh load or a reload still does. A restored page reconnects by
+ * reloading itself (CurvytronController), so a restore is remembered (30 s)
+ * for that one reload.
+ *
+ * @return {Boolean}
+ */
+RoomsController.arrivedByBackForward = function()
+{
+    var nav = (window.performance && performance.getEntriesByType && performance.getEntriesByType('navigation')[0]) || {};
+    if (nav.type === 'back_forward' || (window.performance && performance.navigation && performance.navigation.type === 2)) { return true; }
+    var restored = 0;
+    try {
+        restored = Number(window.sessionStorage.getItem('kurver_back_forward')) || 0;
+        window.sessionStorage.removeItem('kurver_back_forward');
+    } catch (e) {}
+    return Date.now() - restored < 30000;
+};
+
+window.addEventListener('pageshow', function (e) {
+    if (e.persisted) {
+        try { window.sessionStorage.setItem('kurver_back_forward', String(Date.now())); } catch (err) {}
+    }
+});
+
+/**
  * Attach Events
  */
 RoomsController.prototype.findSeat = function()
@@ -66,6 +93,8 @@ RoomsController.prototype.findSeat = function()
     var superseded = false;
     try { superseded = window.sessionStorage.getItem('kurver_superseded') === '1'; } catch (e) {}
     if (superseded || !this.client.connected) { return; }
+    // Not when the page was reached with Back/Forward: the player was leaving.
+    if (RoomsController.arrivedByBackForward()) { return; }
 
     var controller = this;
 
