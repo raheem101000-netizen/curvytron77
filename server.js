@@ -1,6 +1,17 @@
 process.chdir(__dirname);
 require('dotenv').config();
 const { Pool } = require('pg');
+const { timingSafeEqual } = require('crypto');
+
+// Admin key for /admin/* — only from the ADMIN_KEY environment variable (the
+// same value as tenten.run's). No fallback: unset or short = every admin call refused.
+const ADMIN_KEY = process.env.ADMIN_KEY || '';
+function adminKeyOk(given) {
+    if (ADMIN_KEY.length < 32 || typeof given !== 'string') return false;
+    const a = Buffer.from(given), b = Buffer.from(ADMIN_KEY);
+    return a.length === b.length && timingSafeEqual(a, b);
+}
+if (ADMIN_KEY.length < 32) console.error('[admin] ADMIN_KEY is not set (or too short) — /admin/* is refused');
 const neonPool = process.env.DATABASE_URL
     ? new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } })
     : null;
@@ -56,7 +67,7 @@ app.options('/admin/prize-claims', (_req, res) => { res.set('Access-Control-Allo
 app.options('/admin/mark-paid',     (_req, res) => { res.set('Access-Control-Allow-Origin','*').set('Access-Control-Allow-Methods','POST,OPTIONS').set('Access-Control-Allow-Headers','Content-Type').sendStatus(204); });
 app.get('/admin/prize-claims', async (req, res) => {
     res.set('Access-Control-Allow-Origin', '*');
-    if (req.query.key !== 'TENTEN2025') { res.status(401).json({ error: 'Unauthorized' }); return; }
+    if (!adminKeyOk(req.query.key)) { res.status(401).json({ error: 'Unauthorized' }); return; }
     if (!neonPool) { res.json([]); return; }
     try {
         const result = await neonPool.query('SELECT * FROM prize_claims WHERE paid = false AND game = \'Kurver Multiplayer\' ORDER BY claimed_at DESC');
@@ -65,7 +76,7 @@ app.get('/admin/prize-claims', async (req, res) => {
 });
 app.post('/admin/mark-paid', async (req, res) => {
     res.set('Access-Control-Allow-Origin', '*');
-    if (req.query.key !== 'TENTEN2025') { res.status(401).json({ error: 'Unauthorized' }); return; }
+    if (!adminKeyOk(req.query.key)) { res.status(401).json({ error: 'Unauthorized' }); return; }
     if (!neonPool) { res.json({ success: false }); return; }
     try {
         await neonPool.query('UPDATE prize_claims SET paid = true WHERE id = $1', [req.body.id]);
